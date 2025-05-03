@@ -1,0 +1,33 @@
+{
+  "name": "car-poolio",
+  "version": "1.0.0",
+  "description": "A Discord bot for organizing carpools",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "node --watch --experimental-strip-types src/index.ts",
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "node --experimental-strip-types --test src/__tests__/*.test.ts",
+    "test:watch": "node --experimental-strip-types --test --watch src/__tests__/*.test.ts",
+    "test:coverage": "node --experimental-strip-types --test --coverage src/__tests__/*.test.ts"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "sequelize": "^6.35.2",
+    "sqlite3": "^5.1.6",
+    "node-geocoder": "^4.2.0",
+    "luxon": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/sqlite3": "^3.1.8",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0",
+    "@types/discord.js": "^14.0.0",
+    "@types/node-geocoder": "^3.24.0",
+    "@types/luxon": "^3.0.0"
+  }
+} 
