@@ -326,9 +326,12 @@ export async function setupDatabase(): Promise<void> {
         User.hasMany(UserLocationRole, { foreignKey: 'userId' });
         UserLocationRole.belongsTo(User, { foreignKey: 'userId' });
 
-        // Sync all models
-        await sequelize.sync({ alter: true });
-        console.log('Database models synchronized successfully.');
+        // First sync with force: true to ensure clean tables
+        await sequelize.sync({ force: true });
+        console.log('Database models synchronized successfully with force option.');
+
+        // Subsequent syncs will use alter: true
+        sequelize.options.sync = { alter: true };
     } catch (error) {
         console.error('Unable to connect to the database:', error);
         throw error;

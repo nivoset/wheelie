@@ -1,26 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
+    "module": "ESNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": false,
-    "removeComments": true,
-    "noEmitOnError": true,
+    "jsx": "react-jsx",
     "allowJs": true,
     "checkJs": false,
     "isolatedModules": true,
-    "allowImportingTsExtensions": true,
     "noEmit": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
     "paths": {
-      "*": ["./node_modules/*"]
+      "*": ["node_modules/*", "src/types/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "include": ["src"],
+  "exclude": ["node_modules", "build"]
 } 

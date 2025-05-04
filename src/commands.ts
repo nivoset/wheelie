@@ -44,7 +44,7 @@ export const commands = [
         .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
             subcommand
                 .setName('set-work')
-                .setDescription('Set your work location')
+                .setDescription('Set a work location')
                 .addStringOption((option: SlashCommandStringOption) =>
                     option.setName('name')
                         .setDescription('Name of the work location')
@@ -119,6 +119,14 @@ export const commands = [
                         .setRequired(true)))
         .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
             subcommand
+                .setName('join')
+                .setDescription('Join a carpool group')
+                .addStringOption((option: SlashCommandStringOption) =>
+                    option.setName('group')
+                        .setDescription('Name of the carpool group to join')
+                        .setRequired(true)))
+        .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
+            subcommand
                 .setName('admin')
                 .setDescription('Admin commands for carpool management')
                 .addStringOption((option: SlashCommandStringOption) =>
@@ -145,6 +153,34 @@ export const commands = [
                 .addStringOption((option: SlashCommandStringOption) =>
                     option.setName('message')
                         .setDescription('The announcement message (for announce)')
+                        .setRequired(false)))
+        .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
+            subcommand
+                .setName('add-office')
+                .setDescription('Add a new office location')
+                .addStringOption((option: SlashCommandStringOption) =>
+                    option.setName('name')
+                        .setDescription('Name of the office')
+                        .setRequired(true))
+                .addStringOption((option: SlashCommandStringOption) =>
+                    option.setName('address')
+                        .setDescription('Address of the office')
+                        .setRequired(true)))
+        .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
+            subcommand
+                .setName('set-office')
+                .setDescription('Set your work location to an existing office')
+                .addStringOption((option: SlashCommandStringOption) =>
+                    option.setName('name')
+                        .setDescription('Name of the office')
+                        .setRequired(true)))
+        .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
+            subcommand
+                .setName('find-offices')
+                .setDescription('Find offices and their carpool usage')
+                .addStringOption((option: SlashCommandStringOption) =>
+                    option.setName('zipcode')
+                        .setDescription('Optional: Your zip code to see distances')
                         .setRequired(false)))
 ];
 
@@ -652,7 +688,14 @@ export const handleSetOrganizer = async (interaction: ChatInputCommandInteractio
         }
 
         // Find the carpool group
-        const carpoolGroup = await CarpoolGroup.findOne({ where: { name: groupName } });
+        const carpoolGroup = await CarpoolGroup.findOne({ 
+            where: { name: groupName },
+            include: [
+                { model: WorkLocation },
+                { model: CarpoolMember, include: [{ model: User }] }
+            ]
+        }) as CarpoolGroupWithMembers | null;
+
         if (!carpoolGroup) {
             return interaction.reply({ 
                 content: 'Carpool group not found. Please check the group name and try again.',
@@ -700,6 +743,88 @@ export const handleSetOrganizer = async (interaction: ChatInputCommandInteractio
     }
 };
 
+// Add the handler function for joining a carpool
+export async function handleJoinCarpool(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
+    const groupName = interaction.options.getString('group', true);
+    
+    try {
+        // Check if user exists
+        const user = await User.findByPk(interaction.user.id);
+        if (!user) {
+            return interaction.reply({ 
+                content: 'Please register first using /pool set-home',
+                flags: [MessageFlags.Ephemeral] 
+            });
+        }
+
+        // Find the carpool group
+        const carpoolGroup = await CarpoolGroup.findOne({ 
+            where: { name: groupName },
+            include: [
+                { model: WorkLocation },
+                { model: CarpoolMember, include: [{ model: User }] }
+            ]
+        }) as CarpoolGroupWithMembers | null;
+
+        if (!carpoolGroup) {
+            return interaction.reply({ 
+                content: 'Carpool group not found. Please check the group name and try again.',
+                flags: [MessageFlags.Ephemeral] 
+            });
+        }
+
+        // Check if group is full
+        if (carpoolGroup.CarpoolMembers.length >= carpoolGroup.maxSize) {
+            return interaction.reply({ 
+                content: 'This carpool group is full.',
+                flags: [MessageFlags.Ephemeral] 
+            });
+        }
+
+        // Check if user is already a member
+        const existingMember = await CarpoolMember.findOne({
+            where: {
+                userId: interaction.user.id,
+                carpoolGroupId: carpoolGroup.id
+            }
+        });
+
+        if (existingMember) {
+            return interaction.reply({ 
+                content: 'You are already a member of this carpool group.',
+                flags: [MessageFlags.Ephemeral] 
+            });
+        }
+
+        // Add user to carpool group
+        await CarpoolMember.create({
+            userId: interaction.user.id,
+            carpoolGroupId: carpoolGroup.id,
+            isOrganizer: false
+        });
+
+        // Notify carpool members
+        const embed = new EmbedBuilder()
+            .setTitle('New Carpool Member')
+            .setDescription(`${interaction.user.username} has joined ${groupName}`)
+            .setColor('#00ff00')
+            .setTimestamp();
+
+        await notifyCarpoolMembers(carpoolGroup.id.toString(), `👋 ${interaction.user.username} has joined ${groupName}`, embed);
+
+        return interaction.reply({ 
+            content: `Successfully joined carpool group: ${groupName}`,
+            flags: [MessageFlags.Ephemeral] 
+        });
+    } catch (error) {
+        console.error('Join carpool error:', error);
+        return interaction.reply({ 
+            content: 'There was an error joining the carpool group. Please try again later.',
+            flags: [MessageFlags.Ephemeral] 
+        });
+    }
+}
+
 export async function handleInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
     console.log('=== Interaction Received ===');
     console.log('Command Name:', interaction.commandName);
@@ -737,6 +862,8 @@ export async function handleInteraction(interaction: ChatInputCommandInteraction
                 'out': handleOut,
                 'message': handleMessage,
                 'set-organizer': handleSetOrganizer,
+                'join': handleJoinCarpool,
+                'find-offices': handleFindOffices,
                 'admin': async (interaction: ChatInputCommandInteraction) => {
                     const action = interaction.options.getString('action', true);
                     switch (action) {
@@ -967,6 +1094,210 @@ export async function handleRemoveLocation(interaction: ChatInputCommandInteract
         console.error('Error removing location:', error);
         await interaction.reply({
             content: 'There was an error removing your location. Please try again later.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+}
+
+// Helper function to calculate distance between two points
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+export async function handleAddOffice(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
+    try {
+        const name = interaction.options.getString('name', true);
+        const address = interaction.options.getString('address', true);
+        const result = await geocoder.geocode(address);
+        
+        if (result.length === 0) {
+            return interaction.reply({
+                content: 'Could not find the address. Please try again with a more specific location.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const { latitude, longitude } = result[0];
+        if (!latitude || !longitude) {
+            return interaction.reply({
+                content: 'Could not get coordinates for the address. Please try again.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        // Check if office with same name already exists
+        const existingOffice = await WorkLocation.findOne({ where: { name } });
+        if (existingOffice) {
+            return interaction.reply({
+                content: 'An office with this name already exists. Please choose a different name.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const workLocation = await WorkLocation.create({
+            name,
+            address,
+            latitude,
+            longitude,
+        }) as WorkLocationInstance;
+
+        return interaction.reply({
+            content: `Successfully added office ${name} at ${address}!`,
+            flags: [MessageFlags.Ephemeral]
+        });
+    } catch (error) {
+        console.error('Error adding office:', error);
+        return interaction.reply({
+            content: 'There was an error adding the office. Please try again later.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+}
+
+export async function handleSetOffice(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
+    try {
+        const name = interaction.options.getString('name', true);
+        
+        // Check if user exists
+        const user = await User.findByPk(interaction.user.id);
+        if (!user) {
+            return interaction.reply({
+                content: 'Please register first using /pool set-home',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        // Find the office
+        const office = await WorkLocation.findOne({ where: { name } });
+        if (!office) {
+            return interaction.reply({
+                content: 'Office not found. Please check the name or add it first using /pool add-office',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        // Create or update work schedule
+        const [schedule] = await WorkSchedule.findOrCreate({
+            where: { userId: interaction.user.id },
+            defaults: {
+                userId: interaction.user.id,
+                workLocationId: office.id,
+                startTime: '09:00', // Default values
+                endTime: '17:00',
+                daysOfWeek: '1,2,3,4,5'
+            }
+        });
+
+        if (schedule.workLocationId !== office.id) {
+            await schedule.update({ workLocationId: office.id });
+        }
+
+        return interaction.reply({
+            content: `Successfully set your work location to ${name}!`,
+            flags: [MessageFlags.Ephemeral]
+        });
+    } catch (error) {
+        console.error('Error setting office:', error);
+        return interaction.reply({
+            content: 'There was an error setting your office. Please try again later.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+}
+
+export async function handleFindOffices(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
+    try {
+        const zipCode = interaction.options.getString('zipcode');
+        const offices = await WorkLocation.findAll({
+            include: [{
+                model: WorkSchedule,
+                include: [{
+                    model: User,
+                    include: [{
+                        model: CarpoolMember,
+                        include: [CarpoolGroup]
+                    }]
+                }]
+            }]
+        }) as (WorkLocationInstance & {
+            WorkSchedules: (WorkScheduleInstance & {
+                User: UserInstance & {
+                    CarpoolMembers: CarpoolMemberInstance[];
+                };
+            })[];
+        })[];
+
+        if (offices.length === 0) {
+            return interaction.reply({
+                content: 'No offices found in the system yet.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('Available Offices')
+            .setDescription('Here are all the offices in our system:')
+            .setColor('#0099ff');
+
+        for (const office of offices) {
+            // Count total users at this office
+            const totalUsers = office.WorkSchedules?.length || 0;
+            
+            // Count users in carpools
+            const usersInCarpools = office.WorkSchedules?.filter(schedule => 
+                schedule.User?.CarpoolMembers?.length > 0
+            ).length || 0;
+
+            // Calculate carpool participation rate
+            const participationRate = totalUsers > 0 
+                ? ((usersInCarpools / totalUsers) * 100).toFixed(1)
+                : '0';
+
+            let officeInfo = `${office.address}`;
+            if (zipCode) {
+                const distance = await geocoder.geocode(zipCode)
+                    .then(results => {
+                        if (results.length > 0 && results[0].latitude && results[0].longitude) {
+                            return calculateDistance(
+                                results[0].latitude,
+                                results[0].longitude,
+                                office.latitude,
+                                office.longitude
+                            );
+                        }
+                        return null;
+                    });
+                
+                if (distance !== null) {
+                    officeInfo += `\nDistance from ${zipCode}: ${distance.toFixed(1)}km`;
+                }
+            }
+
+            officeInfo += `\nTotal Users: ${totalUsers}`;
+            officeInfo += `\nUsers in Carpools: ${usersInCarpools}`;
+            officeInfo += `\nCarpool Participation: ${participationRate}%`;
+
+            embed.addFields({
+                name: office.name,
+                value: officeInfo
+            });
+        }
+
+        return interaction.reply({
+            embeds: [embed],
+            flags: [MessageFlags.Ephemeral]
+        });
+    } catch (error) {
+        console.error('Error finding offices:', error);
+        return interaction.reply({
+            content: 'There was an error finding offices. Please try again later.',
             flags: [MessageFlags.Ephemeral]
         });
     }

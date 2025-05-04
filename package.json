@@ -1,33 +1,48 @@
 {
-  "name": "car-poolio",
+  "name": "coolio",
   "version": "1.0.0",
   "type": "module",
-  "description": "A Discord bot for organizing carpools",
+  "description": "Discord carpool bot with web dashboard",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
-    "dev": "node --watch --experimental-strip-types src/index.ts",
+    "start": "node --experimental-strip-types dist/index.js",
+    "dev": "concurrently \"npm run dev:bot\" \"npm run dev:dashboard\"",
+    "dev:bot": "node --watch --experimental-strip-types src/index.ts",
+    "dev:dashboard": "node --watch --experimental-strip-types src/dashboard/server.ts",
     "build": "tsc",
-    "watch": "tsc -w",
     "test": "node --experimental-strip-types --test src/__tests__/*.test.ts",
     "test:watch": "node --experimental-strip-types --test --watch src/__tests__/*.test.ts",
-    "test:coverage": "node --experimental-strip-types --test --coverage src/__tests__/*.test.ts"
+    "test:coverage": "node --experimental-strip-types --test --coverage src/__tests__/*.test.ts",
+    "dashboard": "node --experimental-strip-types dist/dashboard/server.js",
+    "dashboard:build": "tsc && cd dashboard && npm run build"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1",
-    "sequelize": "^6.35.2",
-    "sqlite3": "^5.1.6",
+    "sequelize": "^6.37.1",
+    "sqlite3": "^5.1.7",
     "node-geocoder": "^4.2.0",
-    "luxon": "^3.3.0"
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "passport": "^0.7.0",
+    "passport-discord": "^0.1.4",
+    "dotenv": "^16.4.1",
+    "cors": "^2.8.5",
+    "concurrently": "^8.2.2",
+    "luxon": "^3.4.3"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/sqlite3": "^3.1.8",
-    "nodemon": "^3.0.2",
+    "@types/express": "^4.17.21",
+    "@types/express-session": "^1.17.10",
+    "@types/node": "^20.11.19",
+    "@types/passport": "^1.0.16",
+    "@types/passport-discord": "^0.1.4",
+    "@types/sqlite3": "^3.1.11",
+    "@types/jest": "^29.5.12",
+    "@types/cors": "^2.8.17",
+    "@types/node-geocoder": "^3.24.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.0.0",
-    "@types/node-geocoder": "^3.24.0",
-    "@types/luxon": "^3.0.0"
+    "typescript": "^5.3.3"
   }
 } 
