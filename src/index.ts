@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, Partials, ChatInputCommandInteraction, ApplicationCommandOptionType } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, ChatInputCommandInteraction, ApplicationCommandOptionType, REST, Routes, MessageFlags } from 'discord.js';
 import { setupDatabase } from './database.ts';
 import { handleInteraction, commands, handleSetHome, handleFindCarpool, handleMessage, handleNotify, handleOut, handleRemoveLocation, handleSetLocation, handleSetOrganizer, handleSetSchedule, handleSetWork, handleStats } from './commands.ts';
 
@@ -13,43 +13,47 @@ const client = new Client({
     partials: [Partials.Message, Partials.Reaction]
 });
 
+// Register slash commands
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN!);
+
+async function registerCommands() {
+    try {
+        console.log('Started refreshing application (/) commands.');
+        
+        if (!client.application?.id) {
+            throw new Error('Client application ID not found');
+        }
+        
+        // Register commands globally
+        await rest.put(
+            Routes.applicationCommands(client.application.id),
+            { body: commands.map(command => command.toJSON()) }
+        );
+        
+        console.log('Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error('Error registering commands:', error);
+    }
+}
+
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user?.tag}!`);
     await setupDatabase();
-
-    // Register slash commands
-    try {
-        console.log('Started refreshing application (/) commands.');
-        await client.application?.commands.set(commands);
-        console.log('Successfully reloaded application (/) commands.');
-    } catch (error) {
-        console.error('Error refreshing application commands:', error);
-    }
+    await registerCommands();
 });
 
-client.on('interactionCreate', async (interaction) => {
+client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
-
-    const { commandName, options } = interaction;
-
-    if (commandName === 'pool') {
-        const subcommand = options.getSubcommand();
-        const handler = {
-            'set-home': handleSetHome,
-            'set-work': handleSetWork,
-            'set-schedule': handleSetSchedule,
-            'find-carpool': handleFindCarpool,
-            'stats': handleStats,
-            'notify': handleNotify,
-            'out': handleOut,
-            'message': handleMessage,
-            'set-organizer': handleSetOrganizer,
-            'set-location': handleSetLocation,
-            'remove-location': handleRemoveLocation,
-        }[subcommand];
-
-        if (handler) {
-            await handler(interaction);
+    
+    try {
+        await handleInteraction(interaction);
+    } catch (error) {
+        console.error('Error handling interaction:', error);
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+                content: 'There was an error processing your command. Please try again later.',
+                flags: [MessageFlags.Ephemeral]
+            });
         }
     }
 });

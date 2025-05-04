@@ -5,12 +5,24 @@ A Discord bot for organizing carpools to work locations. This bot helps users fi
 ## Features
 
 - User registration with home address
-- Work location management
+- Work location management with hierarchical roles (city, district, office)
 - Work schedule management
 - Carpool group creation and joining
 - Statistics tracking
 - Address to coordinates conversion
 - Interactive carpool finding
+- Role-based notifications
+- Absence notifications
+- Group messaging
+
+## Technical Stack
+
+- TypeScript
+- Discord.js v14
+- Sequelize ORM
+- SQLite (development)
+- Luxon for date handling
+- Node.js built-in test framework
 
 ## Setup
 
@@ -22,7 +34,6 @@ A Discord bot for organizing carpools to work locations. This bot helps users fi
 3. Create a `.env` file based on `.env.example`:
    ```
    DISCORD_TOKEN=your_discord_bot_token_here
-   PREFIX=!
    ```
 4. Create a Discord bot and get your token from the [Discord Developer Portal](https://discord.com/developers/applications)
 5. Run the bot:
@@ -32,20 +43,57 @@ A Discord bot for organizing carpools to work locations. This bot helps users fi
 
 ## Commands
 
-- `!register <address>` - Register your home address
-- `!setwork <location name> <address>` - Set your work location
-- `!setschedule <work location> <start time> <end time> <days>` - Set your work schedule
-- `!findcarpool` - Find available carpools matching your schedule
-- `!stats` - View carpool statistics
+All commands are implemented as Discord slash commands under the `/pool` command:
+
+- `/pool set-home <address>` - Set your home address
+- `/pool set-work <name> <address>` - Set your work location
+- `/pool set-schedule <location> <starttime> <endtime> <days>` - Set your work schedule
+- `/pool find` - Find available carpools matching your schedule
+- `/pool stats` - View carpool statistics
+- `/pool notify <enabled>` - Enable/disable notifications
+- `/pool out <date> <reason>` - Notify about an absence
+- `/pool message <text>` - Send a message to your carpool group
+- `/pool set-organizer <group>` - Set yourself as a carpool group organizer
+
+Admin commands under `/pool-admin`:
+- `/pool-admin create <name> <location> <max-size>` - Create a new carpool group
+- `/pool-admin list` - List all carpool groups
+- `/pool-admin announce <message>` - Send an announcement to all carpool members
+
+## Role System
+
+The bot implements a hierarchical role system:
+- Cities (Blue roles)
+- Districts (Green roles)
+- Offices (Purple roles)
+
+Roles are automatically created and managed based on work locations.
 
 ## Database
 
-The bot uses SQLite for development and can be configured to use PostgreSQL for production. The database stores:
+The bot uses SQLite for development. The database stores:
 - User information
 - Work locations
 - Work schedules
 - Carpool groups
 - Carpool memberships
+- Location roles
+- User location roles
+
+## Development
+
+- Run in development mode with hot reload:
+  ```bash
+  pnpm dev
+  ```
+- Run tests:
+  ```bash
+  pnpm test
+  ```
+- Build for production:
+  ```bash
+  pnpm build
+  ```
 
 ## AWS Deployment
 

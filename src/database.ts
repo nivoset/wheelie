@@ -1,136 +1,226 @@
-import { Sequelize, DataTypes, Model, ModelStatic } from 'sequelize';
+import { Sequelize, DataTypes, Model } from 'sequelize';
 import path from 'path';
-import { User, WorkLocation, WorkSchedule, CarpoolGroup, CarpoolMember } from './types';
+import { fileURLToPath } from 'url';
+import type {
+    UserInstance,
+    WorkLocationInstance,
+    WorkScheduleInstance,
+    CarpoolGroupInstance,
+    CarpoolMemberInstance,
+    LocationRoleInstance,
+    UserLocationRoleInstance
+} from './types.ts';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const sequelize = new Sequelize({
     dialect: 'sqlite',
-    storage: path.join(__dirname, '../data/carpool.db'),
-    logging: false
+    storage: path.join(__dirname, '../database.sqlite'),
+    logging: false,
 });
 
-const UserModel = sequelize.define<Model<User>>('User', {
+// Define models with proper types
+export const User = sequelize.define<UserInstance>('User', {
+    id: {
+        type: DataTypes.STRING,
+        primaryKey: true,
+    },
     discordId: {
         type: DataTypes.STRING,
-        primaryKey: true
+        allowNull: false,
     },
     homeAddress: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true,
     },
     homeLatitude: {
         type: DataTypes.FLOAT,
-        allowNull: false
+        allowNull: true,
     },
     homeLongitude: {
         type: DataTypes.FLOAT,
-        allowNull: false
-    }
+        allowNull: true,
+    },
+    notificationsEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+}, {
+    tableName: 'users',
 });
 
-const WorkLocationModel = sequelize.define<Model<WorkLocation>>('WorkLocation', {
+export const WorkLocation = sequelize.define<WorkLocationInstance>('WorkLocation', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true
+        autoIncrement: true,
     },
     name: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
     },
     address: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
     },
     latitude: {
         type: DataTypes.FLOAT,
-        allowNull: false
+        allowNull: false,
     },
     longitude: {
         type: DataTypes.FLOAT,
-        allowNull: false
-    }
+        allowNull: false,
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+}, {
+    tableName: 'work_locations',
 });
 
-const WorkScheduleModel = sequelize.define<Model<WorkSchedule>>('WorkSchedule', {
+export const WorkSchedule = sequelize.define<WorkScheduleInstance>('WorkSchedule', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true
+        autoIncrement: true,
     },
     userId: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
+        references: {
+            model: 'users',
+            key: 'id',
+        },
     },
     workLocationId: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: false,
+        references: {
+            model: 'work_locations',
+            key: 'id',
+        },
     },
     startTime: {
-        type: DataTypes.TIME,
-        allowNull: false
+        type: DataTypes.STRING,
+        allowNull: false,
     },
     endTime: {
-        type: DataTypes.TIME,
-        allowNull: false
+        type: DataTypes.STRING,
+        allowNull: false,
     },
     daysOfWeek: {
         type: DataTypes.STRING,
-        allowNull: false
-    }
+        allowNull: false,
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+}, {
+    tableName: 'work_schedules',
 });
 
-const CarpoolGroupModel = sequelize.define<Model<CarpoolGroup>>('CarpoolGroup', {
+export const CarpoolGroup = sequelize.define<CarpoolGroupInstance>('CarpoolGroup', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true
+        autoIncrement: true,
     },
     name: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
     },
     workLocationId: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: false,
+        references: {
+            model: 'work_locations',
+            key: 'id',
+        },
     },
     maxSize: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 4
-    }
+        defaultValue: 4,
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+}, {
+    tableName: 'carpool_groups',
 });
 
-const CarpoolMemberModel = sequelize.define<Model<CarpoolMember>>('CarpoolMember', {
+export const CarpoolMember = sequelize.define<CarpoolMemberInstance>('CarpoolMember', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true
-    },
-    carpoolGroupId: {
-        type: DataTypes.INTEGER,
-        allowNull: false
+        autoIncrement: true,
     },
     userId: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
+        references: {
+            model: 'users',
+            key: 'id',
+        },
     },
-    isDriver: {
+    carpoolGroupId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'carpool_groups',
+            key: 'id',
+        },
+    },
+    isOrganizer: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false
-    }
+        allowNull: false,
+        defaultValue: false,
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+}, {
+    tableName: 'carpool_members',
 });
-
-// Define relationships
-UserModel.hasMany(WorkScheduleModel);
-WorkScheduleModel.belongsTo(UserModel);
-WorkLocationModel.hasMany(WorkScheduleModel);
-WorkScheduleModel.belongsTo(WorkLocationModel);
-WorkLocationModel.hasMany(CarpoolGroupModel);
-CarpoolGroupModel.belongsTo(WorkLocationModel);
-CarpoolGroupModel.hasMany(CarpoolMemberModel);
-CarpoolMemberModel.belongsTo(CarpoolGroupModel);
-UserModel.hasMany(CarpoolMemberModel);
-CarpoolMemberModel.belongsTo(UserModel);
 
 export const LocationRole = sequelize.define<LocationRoleInstance>('LocationRole', {
     id: {
@@ -150,12 +240,22 @@ export const LocationRole = sequelize.define<LocationRoleInstance>('LocationRole
         type: DataTypes.INTEGER,
         allowNull: true,
         references: {
-            model: 'LocationRoles',
+            model: 'location_roles',
             key: 'id',
         },
     },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
 }, {
-    timestamps: true,
+    tableName: 'location_roles',
 });
 
 export const UserLocationRole = sequelize.define<UserLocationRoleInstance>('UserLocationRole', {
@@ -168,47 +268,71 @@ export const UserLocationRole = sequelize.define<UserLocationRoleInstance>('User
         type: DataTypes.STRING,
         allowNull: false,
         references: {
-            model: 'Users',
-            key: 'discordId',
+            model: 'users',
+            key: 'id',
         },
     },
     locationRoleId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-            model: 'LocationRoles',
+            model: 'location_roles',
             key: 'id',
         },
     },
+    createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+    },
 }, {
-    timestamps: true,
+    tableName: 'user_location_roles',
 });
 
-// Add associations
-LocationRole.hasMany(LocationRole, { as: 'children', foreignKey: 'parentId' });
-LocationRole.belongsTo(LocationRole, { as: 'parent', foreignKey: 'parentId' });
-
-UserLocationRole.belongsTo(UserModel, { foreignKey: 'userId' });
-UserLocationRole.belongsTo(LocationRole, { foreignKey: 'locationRoleId' });
-
-UserModel.hasMany(UserLocationRole, { foreignKey: 'userId' });
-LocationRole.hasMany(UserLocationRole, { foreignKey: 'locationRoleId' });
-
-async function setupDatabase(): Promise<void> {
+// Setup database and sync models
+export async function setupDatabase(): Promise<void> {
     try {
-        await sequelize.sync();
-        console.log('Database synchronized successfully');
+        await sequelize.authenticate();
+        console.log('Database connection established successfully.');
+
+        // Define relationships
+        User.hasMany(WorkSchedule, { foreignKey: 'userId' });
+        WorkSchedule.belongsTo(User, { foreignKey: 'userId' });
+
+        WorkLocation.hasMany(WorkSchedule, { foreignKey: 'workLocationId' });
+        WorkSchedule.belongsTo(WorkLocation, { foreignKey: 'workLocationId' });
+
+        WorkLocation.hasMany(CarpoolGroup, { foreignKey: 'workLocationId' });
+        CarpoolGroup.belongsTo(WorkLocation, { foreignKey: 'workLocationId' });
+
+        // Add CarpoolGroup and CarpoolMember associations
+        CarpoolGroup.hasMany(CarpoolMember, { foreignKey: 'carpoolGroupId' });
+        CarpoolMember.belongsTo(CarpoolGroup, { foreignKey: 'carpoolGroupId' });
+        CarpoolMember.belongsTo(User, { foreignKey: 'userId' });
+        User.hasMany(CarpoolMember, { foreignKey: 'userId' });
+
+        // Location role relationships
+        LocationRole.hasMany(LocationRole, { foreignKey: 'parentId', as: 'childRoles' });
+        LocationRole.belongsTo(LocationRole, { foreignKey: 'parentId', as: 'parentRole' });
+
+        LocationRole.hasMany(UserLocationRole, { foreignKey: 'locationRoleId' });
+        UserLocationRole.belongsTo(LocationRole, { foreignKey: 'locationRoleId' });
+
+        User.hasMany(UserLocationRole, { foreignKey: 'userId' });
+        UserLocationRole.belongsTo(User, { foreignKey: 'userId' });
+
+        // Sync all models
+        await sequelize.sync({ alter: true });
+        console.log('Database models synchronized successfully.');
     } catch (error) {
-        console.error('Error synchronizing database:', error);
+        console.error('Unable to connect to the database:', error);
+        throw error;
     }
 }
 
-export {
-    sequelize,
-    UserModel as User,
-    WorkLocationModel as WorkLocation,
-    WorkScheduleModel as WorkSchedule,
-    CarpoolGroupModel as CarpoolGroup,
-    CarpoolMemberModel as CarpoolMember,
-    setupDatabase
-}; 
+export { sequelize }; 

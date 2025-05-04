@@ -1,6 +1,7 @@
 {
   "name": "car-poolio",
   "version": "1.0.0",
+  "type": "module",
   "description": "A Discord bot for organizing carpools",
   "main": "dist/index.js",
   "scripts": {
@@ -26,7 +27,6 @@
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.0",
-    "@types/discord.js": "^14.0.0",
     "@types/node-geocoder": "^3.24.0",
     "@types/luxon": "^3.0.0"
   }

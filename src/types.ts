@@ -1,14 +1,17 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
-import type { Model } from 'sequelize';
+import { type Model, type Optional } from 'sequelize';
 
 export type CommandHandler = (interaction: ChatInputCommandInteraction) => Promise<void>;
 
 export interface UserAttributes {
+    id: string;
     discordId: string;
     homeAddress: string;
     homeLatitude: number;
     homeLongitude: number;
     notificationsEnabled: boolean;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface WorkLocationAttributes {
@@ -17,6 +20,8 @@ export interface WorkLocationAttributes {
     address: string;
     latitude: number;
     longitude: number;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface WorkScheduleAttributes {
@@ -26,6 +31,8 @@ export interface WorkScheduleAttributes {
     startTime: string;
     endTime: string;
     daysOfWeek: string;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface CarpoolGroupAttributes {
@@ -33,6 +40,8 @@ export interface CarpoolGroupAttributes {
     name: string;
     workLocationId: number;
     maxSize: number;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface CarpoolMemberAttributes {
@@ -40,44 +49,42 @@ export interface CarpoolMemberAttributes {
     userId: string;
     carpoolGroupId: number;
     isOrganizer: boolean;
-}
-
-export interface LocationRole {
-    id: number;
-    name: string;
-    type: 'city' | 'district' | 'office';
-    parentId?: number;
-    createdAt: Date;
-    updatedAt: Date;
-}
-
-export interface UserLocationRole {
-    id: number;
-    userId: string;
-    locationRoleId: number;
     createdAt: Date;
     updatedAt: Date;
 }
 
 export interface LocationRoleAttributes {
-    id?: number;
+    id: number;
     name: string;
     type: 'city' | 'district' | 'office';
-    parentId?: number;
-    createdAt?: Date;
-    updatedAt?: Date;
+    parentId: number | null;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface UserLocationRoleAttributes {
-    id?: number;
+    id: number;
     userId: string;
     locationRoleId: number;
-    createdAt?: Date;
-    updatedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
-export interface UserInstance extends Model<UserAttributes>, UserAttributes {}
-export interface WorkLocationInstance extends Model<WorkLocationAttributes>, WorkLocationAttributes {}
-export interface WorkScheduleInstance extends Model<WorkScheduleAttributes>, WorkScheduleAttributes {}
-export interface CarpoolGroupInstance extends Model<CarpoolGroupAttributes>, CarpoolGroupAttributes {}
-export interface CarpoolMemberInstance extends Model<CarpoolMemberAttributes>, CarpoolMemberAttributes {} 
+export type UserInstance = Model<UserAttributes, Optional<UserAttributes, 'id' | 'createdAt' | 'updatedAt'>> & UserAttributes;
+export type WorkLocationInstance = Model<WorkLocationAttributes, Optional<WorkLocationAttributes, 'id' | 'createdAt' | 'updatedAt'>> & WorkLocationAttributes;
+export type WorkScheduleInstance = Model<WorkScheduleAttributes, Optional<WorkScheduleAttributes, 'id' | 'createdAt' | 'updatedAt'>> & WorkScheduleAttributes;
+export type CarpoolGroupInstance = Model<CarpoolGroupAttributes, Optional<CarpoolGroupAttributes, 'id' | 'createdAt' | 'updatedAt'>> & CarpoolGroupAttributes;
+export type CarpoolMemberInstance = Model<CarpoolMemberAttributes, Optional<CarpoolMemberAttributes, 'id' | 'createdAt' | 'updatedAt'>> & CarpoolMemberAttributes;
+export type LocationRoleInstance = Model<LocationRoleAttributes, Optional<LocationRoleAttributes, 'id' | 'createdAt' | 'updatedAt'>> & LocationRoleAttributes;
+export type UserLocationRoleInstance = Model<UserLocationRoleAttributes, Optional<UserLocationRoleAttributes, 'id' | 'createdAt' | 'updatedAt'>> & UserLocationRoleAttributes;
+
+export interface WorkScheduleWithLocation extends WorkScheduleInstance {
+    WorkLocation: WorkLocationInstance;
+}
+
+export interface CarpoolGroupWithMembers extends CarpoolGroupInstance {
+    WorkLocation: WorkLocationInstance;
+    CarpoolMembers: (CarpoolMemberInstance & {
+        User: UserInstance;
+    })[];
+} 

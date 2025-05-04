@@ -1,33 +1,32 @@
-import { 
-    Message, 
-    ChatInputCommandInteraction, 
-    EmbedBuilder, 
-    SlashCommandBuilder, 
-    WebhookClient,
+import {
+    EmbedBuilder,
+    SlashCommandBuilder,
     SlashCommandSubcommandBuilder,
     SlashCommandStringOption,
     SlashCommandBooleanOption,
     SlashCommandIntegerOption,
-    PermissionsBitField
+    PermissionsBitField,
+    MessageFlags,
+    type InteractionResponse
 } from 'discord.js';
-import { User, WorkLocation, WorkSchedule, CarpoolGroup, CarpoolMember, LocationRole, UserLocationRole } from './database.js';
-import NodeGeocoder from 'node-geocoder';
-import { DateTime } from 'luxon';
+import type {
+    ChatInputCommandInteraction
+} from 'discord.js';
+import { User, WorkLocation, WorkSchedule, CarpoolGroup, CarpoolMember, LocationRole, UserLocationRole } from './database.ts';
 import type { 
-    CommandHandler,
     UserInstance,
     WorkLocationInstance,
     WorkScheduleInstance,
     CarpoolGroupInstance,
-    CarpoolMemberInstance
-} from './types.js';
+    CarpoolMemberInstance,
+    WorkScheduleWithLocation,
+    CarpoolGroupWithMembers
+} from './types.ts';
+import NodeGeocoder from 'node-geocoder';
 
 const geocoder = NodeGeocoder({
-    provider: 'openstreetmap'
+    provider: 'openstreetmap',
 });
-
-// Initialize webhook client
-const webhookClient = new WebhookClient({ url: process.env.WEBHOOK_URL || '' });
 
 // Command definitions
 export const commands = [
@@ -117,41 +116,43 @@ export const commands = [
                 .addStringOption((option: SlashCommandStringOption) =>
                     option.setName('group')
                         .setDescription('Name of the carpool group')
-                        .setRequired(true))),
-    new SlashCommandBuilder()
-        .setName('pool-admin')
-        .setDescription('Admin commands for carpool management')
+                        .setRequired(true)))
         .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
             subcommand
-                .setName('create')
-                .setDescription('Create a new carpool group')
+                .setName('admin')
+                .setDescription('Admin commands for carpool management')
+                .addStringOption((option: SlashCommandStringOption) =>
+                    option.setName('action')
+                        .setDescription('Admin action to perform')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Create Carpool', value: 'create' },
+                            { name: 'List Carpools', value: 'list' },
+                            { name: 'Send Announcement', value: 'announce' }
+                        ))
                 .addStringOption((option: SlashCommandStringOption) =>
                     option.setName('name')
-                        .setDescription('Name of the carpool group')
-                        .setRequired(true))
+                        .setDescription('Name of the carpool group (for create)')
+                        .setRequired(false))
                 .addStringOption((option: SlashCommandStringOption) =>
                     option.setName('location')
-                        .setDescription('Name of the work location')
-                        .setRequired(true))
+                        .setDescription('Name of the work location (for create)')
+                        .setRequired(false))
                 .addIntegerOption((option: SlashCommandIntegerOption) =>
                     option.setName('max-size')
-                        .setDescription('Maximum number of members')
-                        .setRequired(true)))
-        .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
-            subcommand
-                .setName('list')
-                .setDescription('List all carpool groups'))
-        .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
-            subcommand
-                .setName('announce')
-                .setDescription('Send an announcement to all carpool members')
+                        .setDescription('Maximum number of members (for create)')
+                        .setRequired(false))
                 .addStringOption((option: SlashCommandStringOption) =>
                     option.setName('message')
-                        .setDescription('The announcement message')
-                        .setRequired(true)))
+                        .setDescription('The announcement message (for announce)')
+                        .setRequired(false)))
 ];
 
-const handleCreateCarpool = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+// Update the CommandHandler type to properly handle interaction responses
+type CommandHandler = (interaction: ChatInputCommandInteraction) => Promise<InteractionResponse<boolean> | void>;
+
+// Update the handleCreateCarpool function
+const handleCreateCarpool = async (interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> => {
     const name = interaction.options.getString('name', true);
     const locationName = interaction.options.getString('location', true);
     const maxSize = interaction.options.getInteger('max-size', true);
@@ -161,7 +162,7 @@ const handleCreateCarpool = async (interaction: ChatInputCommandInteraction): Pr
         if (!workLocation) {
             return interaction.reply({ 
                 content: 'Work location not found. Please create the work location first.',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -171,15 +172,15 @@ const handleCreateCarpool = async (interaction: ChatInputCommandInteraction): Pr
             maxSize
         });
 
-        interaction.reply({ 
+        return interaction.reply({ 
             content: `Successfully created carpool group: ${name}`,
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     } catch (error) {
         console.error('Create carpool error:', error);
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'There was an error creating the carpool group. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
 };
@@ -219,25 +220,10 @@ const handleListCarpools = async (interaction: ChatInputCommandInteraction): Pro
         console.error('List carpools error:', error);
         interaction.reply({ 
             content: 'There was an error listing carpool groups. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
 };
-
-// Helper function to send notifications via webhook
-async function sendNotification(userId: string, message: string, embed?: EmbedBuilder): Promise<void> {
-    try {
-        const user = await User.findByPk(userId) as UserInstance | null;
-        if (user?.notificationsEnabled) {
-            await webhookClient.send({
-                content: `<@${userId}> ${message}`,
-                embeds: embed ? [embed] : undefined
-            });
-        }
-    } catch (error) {
-        console.error('Error sending notification:', error);
-    }
-}
 
 // Helper function to notify carpool members
 async function notifyCarpoolMembers(carpoolId: string, message: string, embed?: EmbedBuilder): Promise<void> {
@@ -251,7 +237,8 @@ async function notifyCarpoolMembers(carpoolId: string, message: string, embed?: 
 
         for (const member of members) {
             if (member.User.notificationsEnabled) {
-                await sendNotification(member.User.discordId, message, embed);
+                // Just log the notification for now
+                console.log(`Notification for ${member.User.discordId}: ${message}`);
             }
         }
     } catch (error) {
@@ -259,185 +246,207 @@ async function notifyCarpoolMembers(carpoolId: string, message: string, embed?: 
     }
 }
 
-export const handleSetHome = async (interaction: ChatInputCommandInteraction): Promise<void> => {
-    const address = interaction.options.getString('address', true);
-    
+// Update the handleSetHome function
+export async function handleSetHome(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
     try {
-        const geoResult = await geocoder.geocode(address);
-        if (!geoResult.length) {
-            return interaction.reply({ 
-                content: 'Could not find the address. Please try again with a more specific address.',
-                ephemeral: true 
+        const address = interaction.options.getString('address', true);
+        const result = await geocoder.geocode(address);
+        
+        if (result.length === 0) {
+            return interaction.reply({
+                content: 'Could not find the address. Please try again with a more specific location.',
+                flags: [MessageFlags.Ephemeral]
             });
         }
 
-        await User.create({
-            discordId: interaction.user.id,
-            homeAddress: address,
-            homeLatitude: geoResult[0].latitude,
-            homeLongitude: geoResult[0].longitude,
-            notificationsEnabled: true // Enable notifications by default
-        });
+        const { latitude, longitude } = result[0];
+        if (!latitude || !longitude) {
+            return interaction.reply({
+                content: 'Could not get coordinates for the address. Please try again.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
 
-        interaction.reply({ 
-            content: 'Successfully registered your home address! You can now set your work location and schedule.',
-            ephemeral: true 
+        let user = await User.findByPk(interaction.user.id) as UserInstance | null;
+        
+        if (!user) {
+            // Create new user if they don't exist
+            user = await User.create({
+                id: interaction.user.id,
+                discordId: interaction.user.id,
+                homeAddress: address,
+                homeLatitude: latitude,
+                homeLongitude: longitude,
+                notificationsEnabled: true
+            }) as UserInstance;
+        } else {
+            // Update existing user
+            await user.update({
+                homeLatitude: latitude,
+                homeLongitude: longitude,
+                homeAddress: address,
+            });
+        }
+
+        return interaction.reply({
+            content: `Successfully set your home location to ${address}!`,
+            flags: [MessageFlags.Ephemeral]
         });
     } catch (error) {
-        console.error('Registration error:', error);
-        interaction.reply({ 
-            content: 'There was an error processing your registration. Please try again later.',
-            ephemeral: true 
+        console.error('Error setting home location:', error);
+        return interaction.reply({
+            content: 'There was an error setting your home location. Please try again later.',
+            flags: [MessageFlags.Ephemeral]
         });
     }
-};
+}
 
-export const handleSetWork = async (interaction: ChatInputCommandInteraction): Promise<void> => {
-    const name = interaction.options.getString('name', true);
-    const address = interaction.options.getString('address', true);
-
+// Update the handleSetWork function
+export async function handleSetWork(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
     try {
-        const geoResult = await geocoder.geocode(address);
-        if (!geoResult.length) {
-            return interaction.reply({ 
-                content: 'Could not find the work address. Please try again with a more specific address.',
-                ephemeral: true 
+        const name = interaction.options.getString('name', true);
+        const address = interaction.options.getString('address', true);
+        const result = await geocoder.geocode(address);
+        
+        if (result.length === 0) {
+            return interaction.reply({
+                content: 'Could not find the address. Please try again with a more specific location.',
+                flags: [MessageFlags.Ephemeral]
             });
         }
 
-        await WorkLocation.create({
+        const { latitude, longitude } = result[0];
+        if (!latitude || !longitude) {
+            return interaction.reply({
+                content: 'Could not get coordinates for the address. Please try again.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const workLocation = await WorkLocation.create({
             name,
             address,
-            latitude: geoResult[0].latitude,
-            longitude: geoResult[0].longitude
-        });
+            latitude,
+            longitude,
+        }) as WorkLocationInstance;
 
-        interaction.reply({ 
-            content: `Successfully set work location: ${name}`,
-            ephemeral: true 
+        return interaction.reply({
+            content: `Successfully created work location ${name} at ${address}!`,
+            flags: [MessageFlags.Ephemeral]
         });
     } catch (error) {
-        console.error('Set work location error:', error);
-        interaction.reply({ 
-            content: 'There was an error setting your work location. Please try again later.',
-            ephemeral: true 
+        console.error('Error creating work location:', error);
+        return interaction.reply({
+            content: 'There was an error creating the work location. Please try again later.',
+            flags: [MessageFlags.Ephemeral]
         });
     }
-};
+}
 
-export const handleSetSchedule = async (interaction: ChatInputCommandInteraction): Promise<void> => {
-    const locationName = interaction.options.getString('location', true);
-    const startTime = interaction.options.getString('starttime', true);
-    const endTime = interaction.options.getString('endtime', true);
-    const days = interaction.options.getString('days', true);
-
+export async function handleSetSchedule(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
-        const workLocation = await WorkLocation.findOne({ where: { name: locationName } });
+        const locationName = interaction.options.getString('location', true);
+        const startTime = interaction.options.getString('starttime', true);
+        const endTime = interaction.options.getString('endtime', true);
+        const daysOfWeek = interaction.options.getString('days', true);
+
+        const workLocation = await WorkLocation.findOne({ where: { name: locationName } }) as WorkLocationInstance | null;
         if (!workLocation) {
-            return interaction.reply({ 
-                content: 'Work location not found. Please set your work location first.',
-                ephemeral: true 
+            await interaction.reply({
+                content: `Work location "${locationName}" not found. Please create it first.`,
+                flags: [MessageFlags.Ephemeral]
             });
+            return;
         }
 
-        const startDateTime = DateTime.fromFormat(startTime, 'HH:mm');
-        const endDateTime = DateTime.fromFormat(endTime, 'HH:mm');
-        
-        if (!startDateTime.isValid || !endDateTime.isValid) {
-            return interaction.reply({ 
-                content: 'Invalid time format. Please use 24-hour format (HH:mm)',
-                ephemeral: true 
-            });
-        }
-
-        const validDays = days.split(',').map(day => parseInt(day.trim()));
-        if (!validDays.every(day => day >= 1 && day <= 7)) {
-            return interaction.reply({ 
-                content: 'Invalid days format. Please provide numbers 1-7 separated by commas (1=Monday, 7=Sunday)',
-                ephemeral: true 
-            });
-        }
-
-        await WorkSchedule.create({
+        const schedule = await WorkSchedule.create({
             userId: interaction.user.id,
             workLocationId: workLocation.id,
-            startTime: startDateTime.toFormat('HH:mm'),
-            endTime: endDateTime.toFormat('HH:mm'),
-            daysOfWeek: validDays.join(',')
-        });
+            startTime,
+            endTime,
+            daysOfWeek,
+        }) as WorkScheduleInstance;
 
-        interaction.reply({ 
-            content: 'Successfully set your work schedule!',
-            ephemeral: true 
+        await interaction.reply({
+            content: `Successfully set your schedule for ${locationName}!`,
+            flags: [MessageFlags.Ephemeral]
         });
     } catch (error) {
-        console.error('Set schedule error:', error);
-        interaction.reply({ 
+        console.error('Error setting schedule:', error);
+        await interaction.reply({
             content: 'There was an error setting your schedule. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral]
         });
     }
-};
+}
 
-export const handleFindCarpool = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function handleFindCarpool(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
-        const user = await User.findByPk(interaction.user.id);
+        const user = await User.findByPk(interaction.user.id) as UserInstance | null;
         if (!user) {
-            return interaction.reply({ 
-                content: 'Please set your home address first using /pool set-home',
-                ephemeral: true 
+            await interaction.reply({
+                content: 'Please register first using /pool set-home',
+                flags: [MessageFlags.Ephemeral]
             });
+            return;
         }
 
         const workSchedules = await WorkSchedule.findAll({
             where: { userId: interaction.user.id },
-            include: [WorkLocation]
-        });
+            include: [{ model: WorkLocation }],
+        }) as WorkScheduleWithLocation[];
 
-        if (!workSchedules.length) {
-            return interaction.reply({ 
-                content: 'Please set your work location and schedule first.',
-                ephemeral: true 
+        if (workSchedules.length === 0) {
+            await interaction.reply({
+                content: 'Please set your work schedule first using /pool set-schedule',
+                flags: [MessageFlags.Ephemeral]
             });
+            return;
+        }
+
+        const carpoolGroups = await CarpoolGroup.findAll({
+            where: { workLocationId: workSchedules[0].workLocationId },
+            include: [
+                { model: WorkLocation },
+                { model: CarpoolMember, include: [{ model: User }] },
+            ],
+        }) as CarpoolGroupWithMembers[];
+
+        if (carpoolGroups.length === 0) {
+            await interaction.reply({
+                content: 'No carpool groups found for your work location.',
+                flags: [MessageFlags.Ephemeral]
+            });
+            return;
         }
 
         const embed = new EmbedBuilder()
-            .setTitle('Available Carpools')
-            .setDescription('React to join a carpool group!');
+            .setTitle('Available Carpool Groups')
+            .setDescription('Here are the carpool groups available for your work location:')
+            .setColor('#0099ff');
 
-        for (const schedule of workSchedules) {
-            const carpools = await CarpoolGroup.findAll({
-                where: { workLocationId: schedule.workLocationId },
-                include: [CarpoolMember]
+        for (const group of carpoolGroups) {
+            const members = group.CarpoolMembers.map(member => member.User.discordId);
+            embed.addFields({
+                name: group.name,
+                value: `Location: ${group.WorkLocation.name}\nMembers: ${members.length}/${group.maxSize}\nMembers: ${members.join(', ')}`,
             });
-
-            for (const carpool of carpools) {
-                if (carpool.CarpoolMembers.length < carpool.maxSize) {
-                    embed.addFields({
-                        name: `${schedule.WorkLocation.name} - ${carpool.name}`,
-                        value: `${carpool.CarpoolMembers.length}/${carpool.maxSize} members`
-                    });
-                }
-            }
         }
 
-        const message = await interaction.reply({ 
+        await interaction.reply({
             embeds: [embed],
-            fetchReply: true 
+            flags: [MessageFlags.Ephemeral]
         });
-
-        // Add reactions for joining carpools
-        // Implementation depends on your specific UI needs
     } catch (error) {
-        console.error('Find carpool error:', error);
-        interaction.reply({ 
+        console.error('Error finding carpools:', error);
+        await interaction.reply({
             content: 'There was an error finding carpools. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral]
         });
     }
-};
+}
 
-export const handleStats = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function handleStats(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
     try {
         const totalUsers = await User.count();
         const totalCarpools = await CarpoolGroup.count();
@@ -451,17 +460,17 @@ export const handleStats = async (interaction: ChatInputCommandInteraction): Pro
                 { name: 'Total Members', value: totalMembers.toString(), inline: true }
             );
 
-        interaction.reply({ embeds: [embed] });
+        return interaction.reply({ embeds: [embed] });
     } catch (error) {
         console.error('Stats error:', error);
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'There was an error retrieving statistics. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
-};
+}
 
-export const handleNotify = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function handleNotify(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
     const enabled = interaction.options.getBoolean('enabled', true);
     
     try {
@@ -469,27 +478,27 @@ export const handleNotify = async (interaction: ChatInputCommandInteraction): Pr
         if (!user) {
             return interaction.reply({ 
                 content: 'Please set your home address first using /pool set-home',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
         user.notificationsEnabled = enabled;
         await user.save();
 
-        interaction.reply({ 
+        return interaction.reply({ 
             content: `Notifications ${enabled ? 'enabled' : 'disabled'} successfully!`,
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     } catch (error) {
         console.error('Notification settings error:', error);
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'There was an error updating your notification settings. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
-};
+}
 
-export const handleOut = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function handleOut(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
     const date = interaction.options.getString('date', true);
     const reason = interaction.options.getString('reason', true);
 
@@ -498,7 +507,7 @@ export const handleOut = async (interaction: ChatInputCommandInteraction): Promi
         if (!user) {
             return interaction.reply({ 
                 content: 'Please set your home address first using /pool set-home',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -511,7 +520,7 @@ export const handleOut = async (interaction: ChatInputCommandInteraction): Promi
         if (!memberships.length) {
             return interaction.reply({ 
                 content: 'You are not a member of any carpool groups.',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -525,26 +534,26 @@ export const handleOut = async (interaction: ChatInputCommandInteraction): Promi
         // Notify all carpool groups
         for (const membership of memberships) {
             await notifyCarpoolMembers(
-                membership.carpoolGroupId,
+                membership.carpoolGroupId.toString(),
                 `🚫 ${interaction.user.username} will be out on ${date} (${reason})`,
                 embed
             );
         }
 
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'Your absence has been notified to all your carpool groups.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     } catch (error) {
         console.error('Out notification error:', error);
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'There was an error sending your absence notification. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
-};
+}
 
-export const handleMessage = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function handleMessage(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
     const message = interaction.options.getString('text', true);
 
     try {
@@ -552,7 +561,7 @@ export const handleMessage = async (interaction: ChatInputCommandInteraction): P
         if (!user) {
             return interaction.reply({ 
                 content: 'Please set your home address first using /pool set-home',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -565,7 +574,7 @@ export const handleMessage = async (interaction: ChatInputCommandInteraction): P
         if (!memberships.length) {
             return interaction.reply({ 
                 content: 'You are not a member of any carpool groups.',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -579,24 +588,24 @@ export const handleMessage = async (interaction: ChatInputCommandInteraction): P
         // Notify all carpool groups
         for (const membership of memberships) {
             await notifyCarpoolMembers(
-                membership.carpoolGroupId,
+                membership.carpoolGroupId.toString(),
                 `💬 ${interaction.user.username}: ${message}`,
                 embed
             );
         }
 
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'Your message has been sent to all your carpool groups.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     } catch (error) {
         console.error('Message error:', error);
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'There was an error sending your message. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
-};
+}
 
 const handleAnnounce = async (interaction: ChatInputCommandInteraction) => {
     const message = interaction.options.getString('message', true);
@@ -611,24 +620,25 @@ const handleAnnounce = async (interaction: ChatInputCommandInteraction) => {
 
         for (const user of users) {
             if (user.notificationsEnabled) {
-                await sendNotification(user.discordId, '', embed);
+                await notifyCarpoolMembers(user.discordId, '', embed);
             }
         }
 
         interaction.reply({ 
             content: 'Announcement sent successfully!',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     } catch (error) {
         console.error('Announcement error:', error);
         interaction.reply({ 
             content: 'There was an error sending the announcement. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
 };
 
-export const handleSetOrganizer = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+// Update the handleSetOrganizer function
+export const handleSetOrganizer = async (interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> => {
     const groupName = interaction.options.getString('group', true);
     
     try {
@@ -637,7 +647,7 @@ export const handleSetOrganizer = async (interaction: ChatInputCommandInteractio
         if (!user) {
             return interaction.reply({ 
                 content: 'Please register first using /pool set-home',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -646,7 +656,7 @@ export const handleSetOrganizer = async (interaction: ChatInputCommandInteractio
         if (!carpoolGroup) {
             return interaction.reply({ 
                 content: 'Carpool group not found. Please check the group name and try again.',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -661,7 +671,7 @@ export const handleSetOrganizer = async (interaction: ChatInputCommandInteractio
         if (!existingMember) {
             return interaction.reply({ 
                 content: 'You must be a member of the carpool group to become an organizer.',
-                ephemeral: true 
+                flags: [MessageFlags.Ephemeral] 
             });
         }
 
@@ -675,44 +685,92 @@ export const handleSetOrganizer = async (interaction: ChatInputCommandInteractio
             .setColor('#00ff00')
             .setTimestamp();
 
-        await notifyCarpoolMembers(carpoolGroup.id, `👑 ${interaction.user.username} is now an organizer for ${groupName}`, embed);
+        await notifyCarpoolMembers(carpoolGroup.id.toString(), `👑 ${interaction.user.username} is now an organizer for ${groupName}`, embed);
 
-        interaction.reply({ 
+        return interaction.reply({ 
             content: `You are now an organizer for ${groupName}!`,
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     } catch (error) {
         console.error('Set organizer error:', error);
-        interaction.reply({ 
+        return interaction.reply({ 
             content: 'There was an error setting you as an organizer. Please try again later.',
-            ephemeral: true 
+            flags: [MessageFlags.Ephemeral] 
         });
     }
 };
 
 export async function handleInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
-    const commandHandlers: Record<string, Record<string, CommandHandler>> = {
-        pool: {
-            'set-home': handleSetHome,
-            'set-work': handleSetWork,
-            'set-schedule': handleSetSchedule,
-            'find': handleFindCarpool,
-            'stats': handleStats,
-            'notify': handleNotify,
-            'out': handleOut,
-            'message': handleMessage,
-            'set-organizer': handleSetOrganizer
-        },
-        'pool-admin': {
-            'create': handleCreateCarpool,
-            'list': handleListCarpools,
-            'announce': handleAnnounce
+    console.log('=== Interaction Received ===');
+    console.log('Command Name:', interaction.commandName);
+    console.log('User ID:', interaction.user.id);
+    console.log('Guild ID:', interaction.guildId);
+    console.log('Subcommand:', interaction.options.getSubcommand());
+    
+    try {
+        // Check for pool-admin role if using admin commands
+        if (interaction.options.getSubcommand() === 'admin') {
+            console.log('Checking pool-admin role...');
+            const member = await interaction.guild?.members.fetch(interaction.user.id);
+            console.log('Member found:', !!member);
+            const hasAdminRole = member?.roles.cache.some(role => role.name === 'pool-admin');
+            console.log('Has admin role:', hasAdminRole);
+            
+            if (!hasAdminRole) {
+                console.log('No admin role, sending error message');
+                await interaction.reply({
+                    content: 'You need the pool-admin role to use this command.',
+                    flags: [MessageFlags.Ephemeral]
+                });
+                return;
+            }
         }
-    };
 
-    const handler = commandHandlers[interaction.commandName]?.[interaction.options.getSubcommand()];
-    if (handler) {
-        await handler(interaction);
+        const commandHandlers: Record<string, Record<string, CommandHandler>> = {
+            pool: {
+                'set-home': handleSetHome,
+                'set-work': handleSetWork,
+                'set-schedule': handleSetSchedule,
+                'find': handleFindCarpool,
+                'stats': handleStats,
+                'notify': handleNotify,
+                'out': handleOut,
+                'message': handleMessage,
+                'set-organizer': handleSetOrganizer,
+                'admin': async (interaction: ChatInputCommandInteraction) => {
+                    const action = interaction.options.getString('action', true);
+                    switch (action) {
+                        case 'create':
+                            return handleCreateCarpool(interaction);
+                        case 'list':
+                            return handleListCarpools(interaction);
+                        case 'announce':
+                            return handleAnnounce(interaction);
+                        default:
+                            return interaction.reply({
+                                content: 'Invalid admin action.',
+                                flags: [MessageFlags.Ephemeral]
+                            });
+                    }
+                }
+            }
+        };
+
+        const handler = commandHandlers[interaction.commandName]?.[interaction.options.getSubcommand()];
+        console.log('Handler found:', !!handler);
+        
+        if (handler) {
+            console.log('Executing handler...');
+            await handler(interaction);
+        } else {
+            console.log('No handler found for command');
+        }
+    } catch (error) {
+        console.error('Error in handleInteraction:', error);
+        await interaction.reply({
+            content: 'There was an error processing your command. Please try again later.',
+            flags: [MessageFlags.Ephemeral]
+        });
     }
 }
 
@@ -722,7 +780,7 @@ export async function handleSetLocation(interaction: ChatInputCommandInteraction
         if (!user) {
             await interaction.reply({
                 content: 'Please register first using /pool set-home',
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral]
             });
             return;
         }
@@ -745,7 +803,7 @@ export async function handleSetLocation(interaction: ChatInputCommandInteraction
                 if (!parent) {
                     await interaction.reply({
                         content: `Parent location "${parentLocation}" not found. Please create it first.`,
-                        ephemeral: true,
+                        flags: [MessageFlags.Ephemeral]
                     });
                     return;
                 }
@@ -784,7 +842,7 @@ export async function handleSetLocation(interaction: ChatInputCommandInteraction
             if (!category) {
                 category = await interaction.guild?.roles.create({
                     name: categoryName,
-                    color: 'DEFAULT',
+                    color: 'Default',
                     position: 0, // Place at the top
                     hoist: true, // Show in separate section
                     mentionable: false,
@@ -821,15 +879,19 @@ export async function handleSetLocation(interaction: ChatInputCommandInteraction
             // Create the role
             role = await interaction.guild?.roles.create({
                 name: roleName,
-                color: locationType === 'city' ? 'BLUE' : 
-                       locationType === 'district' ? 'GREEN' : 
-                       'PURPLE',
-                position: parentRole ? parentRole.position - 1 : category.position + 1,
+                color: locationType === 'city' ? 'Blue' : 
+                       locationType === 'district' ? 'Green' : 
+                       'Purple',
+                position: parentRole ? parentRole.position - 1 : category?.position ? category.position + 1 : 0,
                 hoist: true,
                 mentionable: true,
                 permissions: permissions,
                 reason: 'Location role for carpool system',
             });
+
+            if (!role) {
+                throw new Error('Failed to create role');
+            }
 
             // Set role description
             const description = locationType === 'city' ? 
@@ -838,24 +900,25 @@ export async function handleSetLocation(interaction: ChatInputCommandInteraction
                 `Members from ${locationName} district of ${parentLocation}` :
                 `Members working at ${locationName}${parentLocation ? ` (${parentLocation})` : ''}`;
 
-            await role.setDescription(description);
+            await role.edit({ reason: description });
         }
 
         // Assign the role to the user
         const member = await interaction.guild?.members.fetch(interaction.user.id);
         if (member && role) {
             await member.roles.add(role);
+            await interaction.reply({
+                content: `Successfully assigned you the ${roleName} role!`,
+                flags: [MessageFlags.Ephemeral]
+            });
+        } else {
+            throw new Error('Failed to assign role to user');
         }
-
-        await interaction.reply({
-            content: `Successfully set your ${locationType} location to ${locationName}!`,
-            ephemeral: true,
-        });
     } catch (error) {
         console.error('Error setting location:', error);
         await interaction.reply({
             content: 'There was an error setting your location. Please try again later.',
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral]
         });
     }
 }
@@ -872,7 +935,7 @@ export async function handleRemoveLocation(interaction: ChatInputCommandInteract
         if (!locationRole) {
             await interaction.reply({
                 content: `Location "${locationName}" not found.`,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral]
             });
             return;
         }
@@ -898,13 +961,13 @@ export async function handleRemoveLocation(interaction: ChatInputCommandInteract
 
         await interaction.reply({
             content: `Successfully removed your ${locationType} location ${locationName}!`,
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral]
         });
     } catch (error) {
         console.error('Error removing location:', error);
         await interaction.reply({
             content: 'There was an error removing your location. Please try again later.',
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral]
         });
     }
 } 

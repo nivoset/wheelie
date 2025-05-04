@@ -11,8 +11,8 @@ import {
     handleOut, 
     handleMessage, 
     handleSetOrganizer 
-} from '../commands';
-import { User, WorkLocation, WorkSchedule, CarpoolGroup, CarpoolMember } from '../database';
+} from '../commands.ts';
+import { User, WorkLocation, WorkSchedule, CarpoolGroup, CarpoolMember } from '../database.ts';
 import NodeGeocoder from 'node-geocoder';
 import { DateTime } from 'luxon';
 
