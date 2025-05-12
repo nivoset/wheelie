@@ -43,18 +43,6 @@ export const commands = [
                         .setRequired(true)))
         .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
             subcommand
-                .setName('set-work')
-                .setDescription('Set a work location')
-                .addStringOption((option: SlashCommandStringOption) =>
-                    option.setName('name')
-                        .setDescription('Name of the work location')
-                        .setRequired(true))
-                .addStringOption((option: SlashCommandStringOption) =>
-                    option.setName('address')
-                        .setDescription('Address of the work location')
-                        .setRequired(true)))
-        .addSubcommand((subcommand: SlashCommandSubcommandBuilder) =>
-            subcommand
                 .setName('set-schedule')
                 .setDescription('Set your work schedule')
                 .addStringOption((option: SlashCommandStringOption) =>
@@ -337,47 +325,6 @@ export async function handleSetHome(interaction: ChatInputCommandInteraction): P
     }
 }
 
-// Update the handleSetWork function
-export async function handleSetWork(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean>> {
-    try {
-        const name = interaction.options.getString('name', true);
-        const address = interaction.options.getString('address', true);
-        const result = await geocoder.geocode(address);
-        
-        if (result.length === 0) {
-            return interaction.reply({
-                content: 'Could not find the address. Please try again with a more specific location.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        const { latitude, longitude } = result[0];
-        if (!latitude || !longitude) {
-            return interaction.reply({
-                content: 'Could not get coordinates for the address. Please try again.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        const workLocation = await WorkLocation.create({
-            name,
-            address,
-            latitude,
-            longitude,
-        }) as WorkLocationInstance;
-
-        return interaction.reply({
-            content: `Successfully created work location ${name} at ${address}!`,
-            flags: [MessageFlags.Ephemeral]
-        });
-    } catch (error) {
-        console.error('Error creating work location:', error);
-        return interaction.reply({
-            content: 'There was an error creating the work location. Please try again later.',
-            flags: [MessageFlags.Ephemeral]
-        });
-    }
-}
 
 export async function handleSetSchedule(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
@@ -854,7 +801,6 @@ export async function handleInteraction(interaction: ChatInputCommandInteraction
         const commandHandlers: Record<string, Record<string, CommandHandler>> = {
             pool: {
                 'set-home': handleSetHome,
-                'set-work': handleSetWork,
                 'set-schedule': handleSetSchedule,
                 'find': handleFindCarpool,
                 'stats': handleStats,
@@ -864,6 +810,8 @@ export async function handleInteraction(interaction: ChatInputCommandInteraction
                 'set-organizer': handleSetOrganizer,
                 'join': handleJoinCarpool,
                 'find-offices': handleFindOffices,
+                'add-office': handleAddOffice,
+                'set-office': handleSetOffice,
                 'admin': async (interaction: ChatInputCommandInteraction) => {
                     const action = interaction.options.getString('action', true);
                     switch (action) {
@@ -890,7 +838,7 @@ export async function handleInteraction(interaction: ChatInputCommandInteraction
             console.log('Executing handler...');
             await handler(interaction);
         } else {
-            console.log('No handler found for command');
+            console.log('No handler found for command: ', interaction.commandName);
         }
     } catch (error) {
         console.error('Error in handleInteraction:', error);

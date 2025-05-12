@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Partials, ChatInputCommandInteraction, ApplicationCommandOptionType, REST, Routes, MessageFlags } from 'discord.js';
 import { setupDatabase } from './database.ts';
-import { handleInteraction, commands, handleSetHome, handleFindCarpool, handleMessage, handleNotify, handleOut, handleRemoveLocation, handleSetLocation, handleSetOrganizer, handleSetSchedule, handleSetWork, handleStats } from './commands.ts';
+import { handleInteraction, commands } from './commands.ts';
 
 const client = new Client({
     intents: [
