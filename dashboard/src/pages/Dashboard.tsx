@@ -1,56 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useSchedules, useCarpools } from '../hooks/useApi';
 
-interface WorkSchedule {
-  id: number;
-  startTime: string;
-  endTime: string;
-  daysOfWeek: string;
-  WorkLocation: {
-    name: string;
-    address: string;
-  };
-}
+const Dashboard = () => {
+  const { data: schedules = [], isLoading: isLoadingSchedules, error: schedulesError } = useSchedules();
+  const { data: carpools = [], isLoading: isLoadingCarpools, error: carpoolsError } = useCarpools();
 
-interface CarpoolMember {
-  id: number;
-  isOrganizer: boolean;
-  CarpoolGroup: {
-    name: string;
-    WorkLocation: {
-      name: string;
-      address: string;
-    };
-  };
-}
+  const isLoading = isLoadingSchedules || isLoadingCarpools;
+  const error = schedulesError || carpoolsError;
 
-const Dashboard: React.FC = () => {
-  const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
-  const [carpools, setCarpools] = useState<CarpoolMember[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [schedulesRes, carpoolsRes] = await Promise.all([
-          axios.get('/api/schedules'),
-          axios.get('/api/carpools')
-        ]);
-        setSchedules(schedulesRes.data);
-        setCarpools(carpoolsRes.data);
-      } catch (err) {
-        setError('Failed to fetch data');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -61,7 +18,7 @@ const Dashboard: React.FC = () => {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-red-500">{error}</div>
+        <div className="text-red-500">Error loading data</div>
       </div>
     );
   }

@@ -84,6 +84,7 @@ app.get('/api/user', (req, res) => {
 app.get('/api/schedules', async (req, res) => {
     try {
         const user = await User.findOne({
+            // @ts-expect-error typing of express issue
             where: { discordId: req.user?.id },
             include: [{
                 model: WorkSchedule,
@@ -94,7 +95,7 @@ app.get('/api/schedules', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-
+        // @ts-expect-error typing of express issue
         res.json(user.WorkSchedules);
     } catch (error) {
         console.error('Error fetching schedules:', error);
@@ -105,6 +106,7 @@ app.get('/api/schedules', async (req, res) => {
 app.get('/api/carpools', async (req, res) => {
     try {
         const user = await User.findOne({
+            // @ts-expect-error typing of express issue
             where: { discordId: req.user?.id },
             include: [{
                 model: CarpoolMember,
@@ -118,7 +120,7 @@ app.get('/api/carpools', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-
+        // @ts-expect-error typing of express issue
         res.json(user.CarpoolMembers);
     } catch (error) {
         console.error('Error fetching carpools:', error);

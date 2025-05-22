@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import { createContext, useContext, type ReactNode } from 'react';
+import { useUser } from '../hooks/useApi';
 
 interface User {
   id: string;
@@ -18,26 +18,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const response = await axios.get('http://localhost:3001/api/user', {
-        withCredentials: true
-      });
-      setUser(response.data);
-    } catch (error) {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const { data: user, isLoading } = useUser();
 
   const login = () => {
     window.location.href = 'http://localhost:3001/auth/discord';
@@ -45,19 +31,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await axios.post('http://localhost:3001/auth/logout', {}, {
-        withCredentials: true
+      await fetch('http://localhost:3001/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
       });
-      setUser(null);
+      window.location.reload();
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error('Error logging out:', error);
     }
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: user ?? null,
         isAuthenticated: !!user,
         isLoading,
         login,
