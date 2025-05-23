@@ -5,15 +5,17 @@
   "description": "Discord carpool bot with web dashboard",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node --experimental-strip-types dist/index.js",
-    "dev": "concurrently \"npm run dev:bot\" \"npm run dev:dashboard\"",
-    "dev:bot": "node --watch --experimental-strip-types src/index.ts",
-    "dev:dashboard": "node --watch --experimental-strip-types src/dashboard/server.ts",
+    "start": "node dist/index.js",
+    "dev": "concurrently \"npm run dev:build\" \"npm run dev:server\" \"npm run dev:bot\" \"cd dashboard && pnpm dev\"",
+    "dev:build": "tsc --watch --preserveWatchOutput",
+    "dev:server": "node --loader ts-node/esm dist/dashboard/server.js",
+    "dev:bot": "node --watch --enable-source-maps dist/bot.js",
+    "dev:dashboard": "node --watch --enable-source-maps dist/dashboard/server.js",
     "build": "concurrently \"tsc\" \"cd dashboard && npm run build\"",
-    "test": "node --experimental-strip-types --test src/__tests__/*.test.ts",
-    "test:watch": "node --experimental-strip-types --test --watch src/__tests__/*.test.ts",
-    "test:coverage": "node --experimental-strip-types --test --coverage src/__tests__/*.test.ts",
-    "dashboard": "node --experimental-strip-types dist/dashboard/server.js",
+    "test": "node --test dist/__tests__/*.test.js",
+    "test:watch": "node --test --watch dist/__tests__/*.test.js",
+    "test:coverage": "node --test --coverage dist/__tests__/*.test.js",
+    "dashboard": "node dist/dashboard/server.js",
     "dashboard:build": "tsc && cd dashboard && npm run build"
   },
   "dependencies": {
@@ -25,6 +27,7 @@
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "luxon": "^3.4.3",
+    "module-alias": "^2.2.3",
     "node-geocoder": "^4.2.0",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
@@ -45,6 +48,10 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3"
+  },
+  "_moduleAliases": {
+    "~": "dist"
   }
 }

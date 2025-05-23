@@ -8,19 +8,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "declaration": false,
-    "removeComments": true,
-    "noEmitOnError": true,
-    "allowJs": true,
-    "checkJs": false,
-    "isolatedModules": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
+    "baseUrl": ".",
     "paths": {
-      "*": ["./node_modules/*"]
+      "~/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "dashboard/src"]
 } 

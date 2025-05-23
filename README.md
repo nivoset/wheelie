@@ -1,4 +1,4 @@
-# Car-Poolio Discord Bot
+# Wheelie Good Rides Discord Bot
 
 A Discord bot for organizing carpools to work locations. This bot helps users find and organize carpools based on their work locations, schedules, and home addresses.
 
@@ -58,7 +58,6 @@ All commands are implemented as Discord slash commands under the `/pool` command
 Admin commands under `/pool-admin`:
 - `/pool-admin create <name> <location> <max-size>` - Create a new carpool group
 - `/pool-admin list` - List all carpool groups
-- `/pool-admin announce <message>` - Send an announcement to all carpool members
 
 ## Role System
 

@@ -1,4 +1,4 @@
-import { Sequelize, DataTypes, Model } from 'sequelize';
+import { Sequelize, Model, DataTypes } from 'sequelize';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type {
@@ -9,7 +9,7 @@ import type {
     CarpoolMemberInstance,
     LocationRoleInstance,
     UserLocationRoleInstance
-} from './types.ts';
+} from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

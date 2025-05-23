@@ -1,18 +1,16 @@
 import {
+    ChatInputCommandInteraction,
     EmbedBuilder,
+    PermissionsBitField,
+    MessageFlags,
+    type InteractionResponse,
     SlashCommandBuilder,
     SlashCommandSubcommandBuilder,
     SlashCommandStringOption,
     SlashCommandBooleanOption,
-    SlashCommandIntegerOption,
-    PermissionsBitField,
-    MessageFlags,
-    type InteractionResponse
+    SlashCommandIntegerOption
 } from 'discord.js';
-import type {
-    ChatInputCommandInteraction
-} from 'discord.js';
-import { User, WorkLocation, WorkSchedule, CarpoolGroup, CarpoolMember, LocationRole, UserLocationRole } from './database.ts';
+import { User, WorkLocation, WorkSchedule, CarpoolGroup, CarpoolMember, LocationRole, UserLocationRole } from './database.js';
 import type { 
     UserInstance,
     WorkLocationInstance,
@@ -20,8 +18,8 @@ import type {
     CarpoolGroupInstance,
     CarpoolMemberInstance,
     WorkScheduleWithLocation,
-    CarpoolGroupWithMembers
-} from './types.ts';
+    CarpoolGroupWithMembers,
+} from './types.js';
 import NodeGeocoder from 'node-geocoder';
 
 const geocoder = NodeGeocoder({

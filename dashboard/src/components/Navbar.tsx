@@ -1,15 +1,41 @@
 import { useAuth } from '../contexts/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMutation } from "@tanstack/react-query";
+import { Button } from "./ui/button";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/auth/logout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to logout");
+      }
+    },
+    onSuccess: () => {
+      logout();
+      navigate("/login");
+    },
+  });
+
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
 
   return (
     <nav className="bg-white shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="text-xl font-bold text-gray-800">
-            Coolio
+            Wheelie Good Rides
           </Link>
 
           <div className="flex items-center gap-4">
@@ -31,12 +57,13 @@ const Navbar = () => {
                   )}
                   <span className="text-gray-700">{user.username}</span>
                 </div>
-                <button
-                  onClick={logout}
-                  className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900"
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                  disabled={logoutMutation.isPending}
                 >
-                  Logout
-                </button>
+                  {logoutMutation.isPending ? "Logging out..." : "Logout"}
+                </Button>
               </>
             ) : (
               <Link

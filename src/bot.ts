@@ -1,7 +1,8 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, Partials, ChatInputCommandInteraction, ApplicationCommandOptionType, REST, Routes, MessageFlags } from 'discord.js';
-import { setupDatabase } from './database.ts';
-import { handleInteraction, commands } from './commands.ts';
+import { Client, GatewayIntentBits, Partials, REST, Routes, MessageFlags } from 'discord.js';
+import { setupDatabase } from './database.js';
+import { handleInteraction, commands } from './commands.js';
+
 
 const client = new Client({
     intents: [

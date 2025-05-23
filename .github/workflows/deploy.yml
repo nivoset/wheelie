@@ -1,37 +1,57 @@
-    name: Deploy to AWS Elastic Beanstalk
-    on:
-      push:
-        branches:
-          - main
-    jobs:
-      deploy:
-        runs-on: ubuntu-latest
-        steps:
-          - name: Checkout code
-            uses: actions/checkout@v4
-    
-          - name: Setup Node.js
-            uses: actions/setup-node@v4
-            with:
-              node-version: '20.12.2'
-    
-          - name: Install pnpm
-            run: npm install -g pnpm
-    
-          - name: Install dependencies
-            run: pnpm install
-    
-          - name: Build application
-            run: pnpm build
-    
-          - name: Deploy to AWS Elastic Beanstalk
-            uses: aws-actions/aws-elastic-beanstalk-deploy-action@v2
-            with:
-              aws-region: ${{ secrets.AWS_REGION }}
-              application-name: your-application-name
-              environment-name: your-environment-name
-              deployment-package: ./
-              version-label: ${{ github.sha }}
-            env:
-              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-              AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+name: Build and Zip for Beanstalk
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+          run_install: false
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            node_modules
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Prepare bundle
+        run: |
+          mkdir build
+          cp -r dist node_modules package.json pnpm-lock.yaml build/
+
+      - name: Zip bundle
+        run: |
+          cd build
+          zip -r ../app-bundle.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-bundle
+          path: app-bundle.zip

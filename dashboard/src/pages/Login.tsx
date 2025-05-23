@@ -7,7 +7,7 @@ const Login = () => {
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
-          <h1 className="text-3xl font-bold">Welcome to Coolio</h1>
+          <h1 className="text-3xl font-bold">Welcome to Wheelie Good Rides</h1>
           <p className="mt-2 text-gray-600">Sign in with your Discord account to continue</p>
         </div>
         

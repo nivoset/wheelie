@@ -3,9 +3,9 @@ import session from 'express-session';
 import passport from 'passport';
 import { Strategy as DiscordStrategy } from 'passport-discord';
 import cors from 'cors';
-import { User, WorkLocation, WorkSchedule, CarpoolMember, CarpoolGroup } from '../database.ts';
-import { CLIENT_ID, CLIENT_SECRET, SESSION_SECRET } from '../config.ts';
-import type { UserInstance, WorkScheduleInstance, WorkLocationInstance, CarpoolMemberInstance, CarpoolGroupInstance } from '../types.ts';
+import { User, WorkLocation, WorkSchedule, CarpoolMember, CarpoolGroup } from '../database.js';
+import { CLIENT_ID, CLIENT_SECRET, SESSION_SECRET } from '../config.js';
+import type { UserInstance } from '../types.js';
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error('Missing Discord OAuth2 credentials');
@@ -42,7 +42,8 @@ passport.deserializeUser(async (id: string, done) => {
 passport.use(new DiscordStrategy({
     clientID: CLIENT_ID,
     clientSecret: CLIENT_SECRET,
-    callbackURL: `http://127.0.0.1:${PORT}/auth/discord/callback`,
+    callbackURL: `http://localhost:3000/auth/discord/callback`,
+    // callbackURL: `http://localhost:${PORT}/auth/discord/callback`,
     scope: ['identify', 'email']
 }, async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: UserInstance | false) => void) => {
     try {
@@ -67,7 +68,7 @@ passport.use(new DiscordStrategy({
 
 // Routes
 app.get('/auth/discord', passport.authenticate('discord'));
-app.get('/auth/discord/callback/', 
+app.get('/auth/discord/callback', 
     passport.authenticate('discord', { failureRedirect: '/login' }),
     (req, res) => {
         res.redirect('/dashboard');
@@ -147,7 +148,6 @@ app.get('/api/offices', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch offices' });
     }
 });
-
 
 app.listen(PORT, () => {
     console.log(`Dashboard server running on port ${PORT}`);

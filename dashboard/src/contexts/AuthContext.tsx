@@ -26,12 +26,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { data: user, isLoading } = useUser();
 
   const login = () => {
-    window.location.href = 'http://localhost:3001/auth/discord';
+    window.location.href = '/auth/discord';
   };
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:3001/auth/logout', {
+      await fetch('/auth/logout', {
         method: 'POST',
         credentials: 'include'
       });
