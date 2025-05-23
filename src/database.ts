@@ -46,6 +46,99 @@ export const User = sequelize.define<UserInstance>('User', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
     },
+    // Discord OAuth tokens
+    accessToken: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    refreshToken: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    tokenExpiresAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+    },
+    // Profile data
+    username: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    avatar: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    discriminator: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    public_flags: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+    },
+    flags: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+    },
+    banner: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    accent_color: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    global_name: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    avatar_decoration_data: {
+        type: DataTypes.JSON,
+        allowNull: true,
+    },
+    collectibles: {
+        type: DataTypes.JSON,
+        allowNull: true,
+    },
+    banner_color: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    clan: {
+        type: DataTypes.JSON,
+        allowNull: true,
+    },
+    primary_guild: {
+        type: DataTypes.JSON,
+        allowNull: true,
+    },
+    mfa_enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
+    locale: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'en-US',
+    },
+    premium_type: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+    },
+    email: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    verified: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
+    // Timestamps
     createdAt: {
         type: DataTypes.DATE,
         allowNull: false,

@@ -10,6 +10,26 @@ export interface UserAttributes {
     homeLatitude: number;
     homeLongitude: number;
     notificationsEnabled: boolean;
+    // Profile data
+    username: string;
+    avatar: string | null;
+    discriminator: string;
+    public_flags: number;
+    flags: number;
+    banner: string | null;
+    accent_color: number;
+    global_name: string;
+    avatar_decoration_data: any | null;
+    collectibles: any | null;
+    banner_color: string;
+    clan: any | null;
+    primary_guild: any | null;
+    mfa_enabled: boolean;
+    locale: string;
+    premium_type: number;
+    email: string;
+    verified: boolean;
+    // Timestamps
     createdAt: Date;
     updatedAt: Date;
 }
@@ -87,4 +107,29 @@ export interface CarpoolGroupWithMembers extends CarpoolGroupInstance {
     CarpoolMembers: (CarpoolMemberInstance & {
         User: UserInstance;
     })[];
+}
+
+export interface Profile {
+    id: string;
+    username: string;
+    avatar: string | null;
+    discriminator: string;
+    public_flags: number;
+    flags: number;
+    banner: string | null;
+    accent_color: number;
+    global_name: string;
+    avatar_decoration_data: any | null;
+    collectibles: any | null;
+    banner_color: string;
+    clan: any | null;
+    primary_guild: any | null;
+    mfa_enabled: boolean;
+    locale: string;
+    premium_type: number;
+    email: string;
+    verified: boolean;
+    provider: string;
+    accessToken: string;
+    fetchedAt: Date;
 } 
