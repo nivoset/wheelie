@@ -299,7 +299,24 @@ export async function handleSetHome(interaction: ChatInputCommandInteraction): P
                 homeAddress: address,
                 homeLatitude: latitude,
                 homeLongitude: longitude,
-                notificationsEnabled: true
+                notificationsEnabled: true,
+                username: interaction.user.username,
+                avatar: interaction.user.avatar,
+                discriminator: interaction.user.discriminator,
+                public_flags: interaction.user.flags?.bitfield || 0,
+                flags: interaction.user.flags?.bitfield || 0,
+                banner: interaction.user.banner || null,
+                accent_color: interaction.user.accentColor || 0,
+                global_name: interaction.user.globalName || '',
+                avatar_decoration_data: interaction.user.avatarDecorationData || null,
+                banner_color: interaction.user.hexAccentColor || '',
+                collectibles: null,
+                clan: null,
+                mfa_enabled: false,
+                locale: 'en-US',
+                premium_type: 0,
+                email: '',
+                verified: false
             }) as UserInstance;
         } else {
             // Update existing user
@@ -314,7 +331,7 @@ export async function handleSetHome(interaction: ChatInputCommandInteraction): P
             content: `Successfully set your home location to ${address}!`,
             flags: [MessageFlags.Ephemeral]
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error setting home location:', error);
         return interaction.reply({
             content: 'There was an error setting your home location. Please try again later.',
@@ -352,7 +369,7 @@ export async function handleSetSchedule(interaction: ChatInputCommandInteraction
             content: `Successfully set your schedule for ${locationName}!`,
             flags: [MessageFlags.Ephemeral]
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error setting schedule:', error);
         await interaction.reply({
             content: 'There was an error setting your schedule. Please try again later.',
@@ -418,7 +435,7 @@ export async function handleFindCarpool(interaction: ChatInputCommandInteraction
             embeds: [embed],
             flags: [MessageFlags.Ephemeral]
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error finding carpools:', error);
         await interaction.reply({
             content: 'There was an error finding carpools. Please try again later.',
@@ -442,7 +459,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
             );
 
         return interaction.reply({ embeds: [embed] });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Stats error:', error);
         return interaction.reply({ 
             content: 'There was an error retrieving statistics. Please try again later.',
@@ -470,7 +487,7 @@ export async function handleNotify(interaction: ChatInputCommandInteraction): Pr
             content: `Notifications ${enabled ? 'enabled' : 'disabled'} successfully!`,
             flags: [MessageFlags.Ephemeral] 
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Notification settings error:', error);
         return interaction.reply({ 
             content: 'There was an error updating your notification settings. Please try again later.',
@@ -525,7 +542,7 @@ export async function handleOut(interaction: ChatInputCommandInteraction): Promi
             content: 'Your absence has been notified to all your carpool groups.',
             flags: [MessageFlags.Ephemeral] 
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Out notification error:', error);
         return interaction.reply({ 
             content: 'There was an error sending your absence notification. Please try again later.',
@@ -579,7 +596,7 @@ export async function handleMessage(interaction: ChatInputCommandInteraction): P
             content: 'Your message has been sent to all your carpool groups.',
             flags: [MessageFlags.Ephemeral] 
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Message error:', error);
         return interaction.reply({ 
             content: 'There was an error sending your message. Please try again later.',
@@ -609,7 +626,7 @@ const handleAnnounce = async (interaction: ChatInputCommandInteraction) => {
             content: 'Announcement sent successfully!',
             flags: [MessageFlags.Ephemeral] 
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Announcement error:', error);
         interaction.reply({ 
             content: 'There was an error sending the announcement. Please try again later.',
@@ -838,7 +855,7 @@ export async function handleInteraction(interaction: ChatInputCommandInteraction
         } else {
             console.log('No handler found for command: ', interaction.commandName);
         }
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error in handleInteraction:', error);
         await interaction.reply({
             content: 'There was an error processing your command. Please try again later.',
@@ -987,7 +1004,7 @@ export async function handleSetLocation(interaction: ChatInputCommandInteraction
         } else {
             throw new Error('Failed to assign role to user');
         }
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error setting location:', error);
         await interaction.reply({
             content: 'There was an error setting your location. Please try again later.',
@@ -1036,7 +1053,7 @@ export async function handleRemoveLocation(interaction: ChatInputCommandInteract
             content: `Successfully removed your ${locationType} location ${locationName}!`,
             flags: [MessageFlags.Ephemeral]
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error removing location:', error);
         await interaction.reply({
             content: 'There was an error removing your location. Please try again later.',
@@ -1098,7 +1115,7 @@ export async function handleAddOffice(interaction: ChatInputCommandInteraction):
             content: `Successfully added office ${name} at ${address}!`,
             flags: [MessageFlags.Ephemeral]
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error adding office:', error);
         return interaction.reply({
             content: 'There was an error adding the office. Please try again later.',
@@ -1149,7 +1166,7 @@ export async function handleSetOffice(interaction: ChatInputCommandInteraction):
             content: `Successfully set your work location to ${name}!`,
             flags: [MessageFlags.Ephemeral]
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error setting office:', error);
         return interaction.reply({
             content: 'There was an error setting your office. Please try again later.',
@@ -1240,7 +1257,7 @@ export async function handleFindOffices(interaction: ChatInputCommandInteraction
             embeds: [embed],
             flags: [MessageFlags.Ephemeral]
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error finding offices:', error);
         return interaction.reply({
             content: 'There was an error finding offices. Please try again later.',

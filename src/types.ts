@@ -90,7 +90,10 @@ export interface UserLocationRoleAttributes {
     updatedAt: Date;
 }
 
-export type UserInstance = Model<UserAttributes, Optional<UserAttributes, 'id' | 'createdAt' | 'updatedAt'>> & UserAttributes;
+export type UserInstance = Model<UserAttributes, Optional<UserAttributes, 'id' | 'createdAt' | 'updatedAt'>> & UserAttributes & {
+    WorkSchedules?: WorkScheduleInstance[];
+    CarpoolMembers?: CarpoolMemberInstance[];
+};
 export type WorkLocationInstance = Model<WorkLocationAttributes, Optional<WorkLocationAttributes, 'id' | 'createdAt' | 'updatedAt'>> & WorkLocationAttributes;
 export type WorkScheduleInstance = Model<WorkScheduleAttributes, Optional<WorkScheduleAttributes, 'id' | 'createdAt' | 'updatedAt'>> & WorkScheduleAttributes;
 export type CarpoolGroupInstance = Model<CarpoolGroupAttributes, Optional<CarpoolGroupAttributes, 'id' | 'createdAt' | 'updatedAt'>> & CarpoolGroupAttributes;

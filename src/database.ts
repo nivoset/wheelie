@@ -46,20 +46,6 @@ export const User = sequelize.define<UserInstance>('User', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
     },
-    // Discord OAuth tokens
-    accessToken: {
-        type: DataTypes.STRING,
-        allowNull: false,
-    },
-    refreshToken: {
-        type: DataTypes.STRING,
-        allowNull: false,
-    },
-    tokenExpiresAt: {
-        type: DataTypes.DATE,
-        allowNull: false,
-    },
-    // Profile data
     username: {
         type: DataTypes.STRING,
         allowNull: false,

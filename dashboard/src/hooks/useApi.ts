@@ -31,7 +31,7 @@ interface User {
 }
 
 const fetchUser = async (): Promise<User> => {
-  const response = await fetch('http://localhost:3001/api/user', {
+  const response = await fetch('/api/user', {
     credentials: 'include'
   });
   if (!response.ok) {
@@ -41,7 +41,9 @@ const fetchUser = async (): Promise<User> => {
 };
 
 const fetchSchedules = async (): Promise<WorkSchedule[]> => {
-  const response = await fetch('/api/schedules');
+  const response = await fetch('/api/schedules', {
+    credentials: 'include'
+  });
   if (!response.ok) {
     throw new Error('Failed to fetch schedules');
   }
@@ -49,7 +51,9 @@ const fetchSchedules = async (): Promise<WorkSchedule[]> => {
 };
 
 const fetchCarpools = async (): Promise<CarpoolMember[]> => {
-  const response = await fetch('/api/carpools');
+  const response = await fetch('/api/carpools', {
+    credentials: 'include'
+  });
   if (!response.ok) {
     throw new Error('Failed to fetch carpools');
   }

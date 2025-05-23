@@ -22,94 +22,107 @@ const PORT = process.env.PORT || 8080;
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : undefined,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV !== 'development',
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined
+    }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serve static files from the dashboard build directory
-const dashboardPath = path.resolve(__dirname, '../../dashboard/dist');
-app.use(express.static(dashboardPath));
+// Add this before your routes
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    console.log('Cookies:', req.headers.cookie);
+    next();
+});
+
+// Helper function to refresh Discord token
+async function refreshDiscordToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+    const params = new URLSearchParams();
+    params.append('client_id', CLIENT_ID || '');
+    params.append('client_secret', CLIENT_SECRET || '');
+    params.append('grant_type', 'refresh_token');
+    params.append('refresh_token', refreshToken);
+
+    const response = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        body: params,
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to refresh token');
+    }
+
+    return await response.json();
+}
+
+// Helper function to get fresh Discord profile
+async function getDiscordProfile(accessToken: string): Promise<any> {
+    const response = await fetch('https://discord.com/api/users/@me', {
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch profile');
+    }
+
+    return await response.json();
+}
 
 // Passport configuration
 passport.serializeUser((user: any, done) => {
+    console.log('=== Serialize User ===');
+    console.log('User object:', JSON.stringify(user, null, 2));
+    console.log('User type:', typeof user);
+    console.log('User keys:', Object.keys(user));
+    if (!user) {
+        console.error('No user object provided to serialize');
+        return done(new Error('No user to serialize'));
+    }
+    if (!user.id) {
+        console.error('User object has no id property');
+        return done(new Error('User has no id'));
+    }
+    console.log('Serializing user with id:', user.id);
     done(null, user.id);
 });
 
 passport.deserializeUser(async (id: string, done) => {
+    console.log('=== Deserialize User ===');
+    console.log('Attempting to deserialize user with id:', id);
     try {
         const user = await User.findByPk(id);
+        console.log('Found user:', user ? JSON.stringify(user.toJSON(), null, 2) : 'null');
+        if (!user) {
+            console.error('No user found for id:', id);
+            return done(new Error('User not found'));
+        }
         done(null, user);
     } catch (err) {
+        console.error('Error deserializing user:', err);
         done(err);
     }
 });
-
-// Helper function to refresh Discord token
-async function refreshDiscordToken(user: UserInstance): Promise<void> {
-    try {
-        const params = new URLSearchParams();
-        params.append('client_id', CLIENT_ID || '');
-        params.append('client_secret', CLIENT_SECRET || '');
-        params.append('grant_type', 'refresh_token');
-        params.append('refresh_token', user.refreshToken);
-
-        const response = await fetch('https://discord.com/api/oauth2/token', {
-            method: 'POST',
-            body: params,
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to refresh token');
-        }
-
-        const data = await response.json();
-        const expiresAt = new Date();
-        expiresAt.setSeconds(expiresAt.getSeconds() + data.expires_in);
-
-        await user.update({
-            accessToken: data.access_token,
-            refreshToken: data.refresh_token,
-            tokenExpiresAt: expiresAt,
-        });
-    } catch (error) {
-        console.error('Error refreshing token:', error);
-        throw error;
-    }
-}
-
-// Helper function to get fresh Discord profile
-async function getDiscordProfile(user: UserInstance): Promise<any> {
-    try {
-        // Check if token needs refresh
-        if (new Date() >= user.tokenExpiresAt) {
-            await refreshDiscordToken(user);
-        }
-
-        const response = await fetch('https://discord.com/api/users/@me', {
-            headers: {
-                Authorization: `Bearer ${user.accessToken}`,
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch profile');
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching profile:', error);
-        throw error;
-    }
-}
 
 passport.use(new DiscordStrategy({
     clientID: CLIENT_ID,
@@ -119,14 +132,14 @@ passport.use(new DiscordStrategy({
         : `http://localhost:${PORT}/auth/discord/callback`,
     scope: ['identify', 'email']
 }, async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: UserInstance | false) => void) => {
+    console.log('=== Discord Strategy ===');
+    console.log('Profile:', JSON.stringify(profile, null, 2));
     try {
         let user = await User.findOne({ where: { discordId: profile.id } });
-        
-        // Calculate token expiration (usually 7 days)
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+        console.log('Existing user:', user ? JSON.stringify(user.toJSON(), null, 2) : 'null');
         
         if (!user) {
+            console.log('Creating new user for Discord ID:', profile.id);
             user = await User.create({
                 id: profile.id,
                 discordId: profile.id,
@@ -134,10 +147,6 @@ passport.use(new DiscordStrategy({
                 homeLatitude: 0,
                 homeLongitude: 0,
                 notificationsEnabled: true,
-                // Store tokens
-                accessToken,
-                refreshToken,
-                tokenExpiresAt: expiresAt,
                 // Profile data
                 username: profile.username,
                 avatar: profile.avatar,
@@ -158,12 +167,11 @@ passport.use(new DiscordStrategy({
                 email: profile.email,
                 verified: profile.verified
             });
+            console.log('Created new user:', JSON.stringify(user.toJSON(), null, 2));
         } else {
-            // Update tokens and profile data
+            console.log('Updating existing user:', user.id);
+            // Update profile data
             await user.update({
-                accessToken,
-                refreshToken,
-                tokenExpiresAt: expiresAt,
                 username: profile.username,
                 avatar: profile.avatar,
                 discriminator: profile.discriminator,
@@ -183,27 +191,77 @@ passport.use(new DiscordStrategy({
                 email: profile.email,
                 verified: profile.verified
             });
+            console.log('Updated user:', JSON.stringify(user.toJSON(), null, 2));
+        }
+
+        // Store tokens in session
+        const req = (done as any).req;
+        if (req && req.session) {
+            req.session.accessToken = accessToken;
+            req.session.refreshToken = refreshToken;
+            req.session.tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         }
         
+        console.log('Passport strategy completed with user:', JSON.stringify(user.toJSON(), null, 2));
         done(null, user);
     } catch (err) {
+        console.error('Error in passport strategy:', err);
         done(err);
     }
 }));
 
 // Routes
 app.get('/auth/discord', passport.authenticate('discord'));
+
 app.get('/auth/discord/callback', 
     passport.authenticate('discord', { failureRedirect: '/login' }),
     (req, res) => {
-        res.redirect('/dashboard');
+        console.log('=== Auth Callback ===');
+        console.log('Session:', req.session);
+        console.log('User:', req.user);
+        
+        // Ensure the session is saved before redirecting
+        req.session.save((err) => {
+            if (err) {
+                console.error('Error saving session:', err);
+                return res.redirect('/login');
+            }
+            
+            // Set CORS headers for the redirect
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+            res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+            res.redirect('http://localhost:3000/dashboard');
+        });
     }
 );
 
+app.get('/debug/session', (req, res) => {
+    console.log('=== Debug Session ===');
+    console.log('Session:', req.session);
+    console.log('User:', req.user);
+    res.json({
+        session: req.session,
+        user: req.user
+    });
+});
+
 app.get('/api/user', (req, res) => {
+    console.log('=== API User ===');
+    console.log('Session:', req.session);
+    console.log('User:', req.user);
+    console.log('Session ID:', req.sessionID);
+    
     if (!req.user) {
-        return res.status(401).json({ error: 'Not authenticated' });
+        return res.status(401).json({ 
+            error: 'Not authenticated',
+            session: req.session,
+            sessionID: req.sessionID
+        });
     }
+    
+    // Set CORS headers for the response
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
     res.json(req.user);
 });
 
@@ -281,7 +339,19 @@ app.get('/api/user/refresh', async (req, res) => {
     }
 
     try {
-        const profile = await getDiscordProfile(req.user as UserInstance);
+        const session = (req as any).session;
+        let accessToken = session.accessToken;
+
+        // Check if token needs refresh
+        if (new Date() >= session.tokenExpiresAt) {
+            const tokens = await refreshDiscordToken(session.refreshToken);
+            accessToken = tokens.accessToken;
+            session.accessToken = tokens.accessToken;
+            session.refreshToken = tokens.refreshToken;
+            session.tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+        }
+
+        const profile = await getDiscordProfile(accessToken);
         await (req.user as UserInstance).update({
             username: profile.username,
             avatar: profile.avatar,
@@ -309,11 +379,39 @@ app.get('/api/user/refresh', async (req, res) => {
     }
 });
 
+// Add a route to logout
+app.get('/auth/logout', (req, res) => {
+    req.logout(() => {
+        req.session.destroy((err) => {
+            if (err) {
+                console.error('Error destroying session:', err);
+            }
+            res.redirect('/');
+        });
+    });
+});
+
+// Serve static files from the dashboard build directory
+const dashboardPath = path.resolve(__dirname, '../../dashboard/dist');
+app.use(express.static(dashboardPath));
+
 // Add a catch-all route to serve the dashboard's index.html
 app.get('*', (req, res) => {
     res.sendFile(path.join(dashboardPath, 'index.html'));
 });
 
-app.listen(PORT, () => {
-    console.log(`Dashboard server running on port ${PORT}`);
+// Start the server
+const server = app.listen(PORT, () => {
+    console.log(`API server running on port ${PORT}`);
+    console.log(`Development mode: ${process.env.NODE_ENV === 'development' ? 'enabled' : 'disabled'}`);
+    console.log(`Dashboard URL: ${process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : `http://localhost:${PORT}`}`);
+    console.log(`Callback URL: ${process.env.NODE_ENV === 'development' ? 'http://localhost:3000/auth/discord/callback' : `http://localhost:${PORT}/auth/discord/callback`}`);
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+        console.log('HTTP server closed');
+    });
 }); 
