@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useUser } from '../hooks/useApi';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface User {
   id: string;
@@ -13,7 +14,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,17 +25,25 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { data: user, isLoading } = useUser();
+  const queryClient = useQueryClient();
 
   const login = () => {
+    // We should not use navigation() here because this needs to b  e a full page redirect to the Discord OAuth flow
+    // Using React Router navigation would only change the client-side route but not actually redirect to Discord
     window.location.href = '/auth/discord';
   };
 
   const logout = async () => {
     try {
       await fetch('/auth/logout', {
-        method: 'POST',
+        method: 'GET',
         credentials: 'include'
       });
+      // Invalidate all queries to clear the cache
+      await queryClient.invalidateQueries();
+      // Clear the cache
+      queryClient.clear();
+      // Reload the page to reset the app state
       window.location.reload();
     } catch (error) {
       console.error('Error logging out:', error);

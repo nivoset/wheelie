@@ -5,7 +5,7 @@ import { Strategy as DiscordStrategy } from 'passport-discord';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { User, WorkLocation, WorkSchedule, CarpoolMember, CarpoolGroup } from '../database.js';
+import { User, WorkLocation, WorkSchedule, CarpoolMember, CarpoolGroup, sequelize } from '../database.js';
 import { CLIENT_ID, CLIENT_SECRET, SESSION_SECRET } from '../config.js';
 import type { UserInstance } from '../types.js';
 
@@ -21,12 +21,37 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 8080;
 const app = express();
 
+// Initialize database and associations
+await sequelize.authenticate();
+console.log('Database connection established successfully.');
+
+// Define relationships
+User.hasMany(WorkSchedule, { foreignKey: 'userId' });
+WorkSchedule.belongsTo(User, { foreignKey: 'userId' });
+
+WorkLocation.hasMany(WorkSchedule, { foreignKey: 'workLocationId' });
+WorkSchedule.belongsTo(WorkLocation, { foreignKey: 'workLocationId' });
+
+WorkLocation.hasMany(CarpoolGroup, { foreignKey: 'workLocationId' });
+CarpoolGroup.belongsTo(WorkLocation, { foreignKey: 'workLocationId' });
+
+// Add CarpoolGroup and CarpoolMember associations
+CarpoolGroup.hasMany(CarpoolMember, { foreignKey: 'carpoolGroupId' });
+CarpoolMember.belongsTo(CarpoolGroup, { foreignKey: 'carpoolGroupId' });
+CarpoolMember.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(CarpoolMember, { foreignKey: 'userId' });
+
+// Sync database with associations
+await sequelize.sync({ alter: true });
+console.log('Database models synchronized successfully.');
+
 // Middleware
-app.use(cors({
-    origin: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : undefined,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+if (process.env.NODE_ENV === 'development')
+    app.use(cors({
+        origin: 'http://localhost:3000',
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(session({
@@ -93,28 +118,22 @@ async function getDiscordProfile(accessToken: string): Promise<any> {
 passport.serializeUser((user: any, done) => {
     console.log('=== Serialize User ===');
     console.log('User object:', JSON.stringify(user, null, 2));
-    console.log('User type:', typeof user);
-    console.log('User keys:', Object.keys(user));
     if (!user) {
         console.error('No user object provided to serialize');
         return done(new Error('No user to serialize'));
     }
-    if (!user.id) {
-        console.error('User object has no id property');
-        return done(new Error('User has no id'));
-    }
-    console.log('Serializing user with id:', user.id);
-    done(null, user.id);
+    // Store the discordId in the session
+    done(null, user.discordId);
 });
 
-passport.deserializeUser(async (id: string, done) => {
+passport.deserializeUser(async (discordId: string, done) => {
     console.log('=== Deserialize User ===');
-    console.log('Attempting to deserialize user with id:', id);
+    console.log('Attempting to deserialize user with discordId:', discordId);
     try {
-        const user = await User.findByPk(id);
+        const user = await User.findOne({ where: { discordId } });
         console.log('Found user:', user ? JSON.stringify(user.toJSON(), null, 2) : 'null');
         if (!user) {
-            console.error('No user found for id:', id);
+            console.error('No user found for discordId:', discordId);
             return done(new Error('User not found'));
         }
         done(null, user);
@@ -141,8 +160,8 @@ passport.use(new DiscordStrategy({
         if (!user) {
             console.log('Creating new user for Discord ID:', profile.id);
             user = await User.create({
-                id: profile.id,
                 discordId: profile.id,
+                id: profile.id, // Use Discord ID as the primary key
                 homeAddress: '',
                 homeLatitude: 0,
                 homeLongitude: 0,
@@ -169,7 +188,7 @@ passport.use(new DiscordStrategy({
             });
             console.log('Created new user:', JSON.stringify(user.toJSON(), null, 2));
         } else {
-            console.log('Updating existing user:', user.id);
+            console.log('Updating existing user:', user.discordId);
             // Update profile data
             await user.update({
                 username: profile.username,
@@ -266,21 +285,26 @@ app.get('/api/user', (req, res) => {
 });
 
 app.get('/api/schedules', async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     try {
         const user = await User.findOne({
-            // @ts-expect-error typing of express issue
-            where: { discordId: req.user?.id },
+            where: { discordId: (req.user as UserInstance).discordId },
             include: [{
                 model: WorkSchedule,
-                include: [WorkLocation]
+                include: [WorkLocation],
+                required: false // Allow users without schedules
             }]
         });
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        // @ts-expect-error typing of express issue
-        res.json(user.WorkSchedules);
+
+        // Return empty array if no schedules
+        res.json(user.WorkSchedules || []);
     } catch (error) {
         console.error('Error fetching schedules:', error);
         res.status(500).json({ error: 'Failed to fetch schedules' });
@@ -288,24 +312,30 @@ app.get('/api/schedules', async (req, res) => {
 });
 
 app.get('/api/carpools', async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+    console.log('req.user', req.user);
+
     try {
         const user = await User.findOne({
-            // @ts-expect-error typing of express issue
-            where: { discordId: req.user?.id },
+            where: { discordId: (req.user as UserInstance).discordId },
             include: [{
                 model: CarpoolMember,
                 include: [{
                     model: CarpoolGroup,
                     include: [WorkLocation]
-                }]
+                }],
+                required: false // Allow users without carpool memberships
             }]
         });
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        // @ts-expect-error typing of express issue
-        res.json(user.CarpoolMembers);
+
+        // Return empty array if no carpool memberships
+        res.json(user.CarpoolMembers || []);
     } catch (error) {
         console.error('Error fetching carpools:', error);
         res.status(500).json({ error: 'Failed to fetch carpools' });
@@ -381,13 +411,33 @@ app.get('/api/user/refresh', async (req, res) => {
 
 // Add a route to logout
 app.get('/auth/logout', (req, res) => {
-    req.logout(() => {
-        req.session.destroy((err) => {
-            if (err) {
-                console.error('Error destroying session:', err);
-            }
-            res.redirect('/');
+    console.log('=== Logout ===');
+    console.log('Session before logout:', req.session);
+    console.log('User before logout:', req.user);
+
+    // Clear the session
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Error destroying session:', err);
+            return res.status(500).json({ error: 'Failed to logout' });
+        }
+
+        // Clear the session cookie
+        res.clearCookie('connect.sid', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV !== 'development',
+            sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+            domain: process.env.NODE_ENV === 'development' ? 'localhost' : undefined
         });
+
+        // Set CORS headers for the redirect
+        if (process.env.NODE_ENV === 'development') {
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+            res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+        }
+
+        // Redirect to the home page
+        res.redirect(process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : '/');
     });
 });
 

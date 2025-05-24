@@ -8,25 +8,13 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch("/auth/logout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to logout");
-      }
-    },
+    mutationFn: logout,
     onSuccess: () => {
-      logout();
       navigate("/login");
     },
   });
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     logoutMutation.mutate();
   };
 
