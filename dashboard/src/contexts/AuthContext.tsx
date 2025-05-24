@@ -7,6 +7,7 @@ interface User {
   username: string;
   discriminator: string;
   avatar: string | null;
+  global_name: string | null;
 }
 
 interface AuthContextType {

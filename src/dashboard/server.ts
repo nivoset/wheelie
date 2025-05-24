@@ -450,6 +450,135 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(dashboardPath, 'index.html'));
 });
 
+// Add a route to update user's address
+app.put('/api/user/address', async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    try {
+        const { address } = req.body;
+        if (!address) {
+            return res.status(400).json({ error: 'Address is required' });
+        }
+
+        // Use OpenStreetMap Nominatim service for geocoding
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+                address
+            )}&limit=1`,
+            {
+                headers: {
+                    'User-Agent': 'Coolio Discord Bot' // Required by Nominatim's usage policy
+                }
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to geocode address');
+        }
+
+        const data = await response.json();
+        if (!data || data.length === 0) {
+            return res.status(400).json({ error: 'Invalid address' });
+        }
+
+        const { lat, lon } = data[0];
+
+        // Update user's address and coordinates
+        await User.update(
+            {
+                homeAddress: address,
+                homeLatitude: parseFloat(lat),
+                homeLongitude: parseFloat(lon),
+            },
+            {
+                where: { discordId: (req.user as UserInstance).discordId },
+            }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error updating address:', error);
+        res.status(500).json({ error: 'Failed to update address' });
+    }
+});
+
+// Add a route to create a new schedule
+app.post('/api/schedules', async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    try {
+        const { workLocationId, startTime, endTime, daysOfWeek } = req.body;
+
+        // Validate required fields
+        if (!workLocationId || !startTime || !endTime || !daysOfWeek) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // Validate time format (HH:mm)
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+            return res.status(400).json({ error: 'Invalid time format. Use HH:mm' });
+        }
+
+        // Validate days format (1-7, comma-separated)
+        const daysRegex = /^[1-7](,[1-7])*$/;
+        if (!daysRegex.test(daysOfWeek)) {
+            return res.status(400).json({ error: 'Invalid days format. Use numbers 1-7 separated by commas' });
+        }
+
+        // Create the schedule
+        const schedule = await WorkSchedule.create({
+            userId: (req.user as UserInstance).discordId,
+            workLocationId,
+            startTime,
+            endTime,
+            daysOfWeek,
+        });
+
+        res.status(201).json(schedule);
+    } catch (error) {
+        console.error('Error creating schedule:', error);
+        res.status(500).json({ error: 'Failed to create schedule' });
+    }
+});
+
+// Add a route to delete a schedule
+app.delete('/api/schedules/:id', async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    try {
+        const scheduleId = parseInt(req.params.id);
+        if (isNaN(scheduleId)) {
+            return res.status(400).json({ error: 'Invalid schedule ID' });
+        }
+
+        // Find the schedule and ensure it belongs to the user
+        const schedule = await WorkSchedule.findOne({
+            where: {
+                id: scheduleId,
+                userId: (req.user as UserInstance).discordId,
+            },
+        });
+
+        if (!schedule) {
+            return res.status(404).json({ error: 'Schedule not found' });
+        }
+
+        // Delete the schedule
+        await schedule.destroy();
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting schedule:', error);
+        res.status(500).json({ error: 'Failed to delete schedule' });
+    }
+});
+
 // Start the server
 const server = app.listen(PORT, () => {
     console.log(`API server running on port ${PORT}`);

@@ -18,6 +18,8 @@ const Navbar = () => {
     logoutMutation.mutate();
   };
 
+  const username = user?.global_name || user?.username;
+
   return (
     <nav className="bg-white shadow-sm">
       <div className="container mx-auto px-4">
@@ -33,17 +35,17 @@ const Navbar = () => {
                   {user.avatar ? (
                     <img
                       src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`}
-                      alt={user.username}
+                      alt={username}
                       className="w-8 h-8 rounded-full"
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                       <span className="text-gray-500 text-sm">
-                        {user.username.charAt(0).toUpperCase()}
+                        {username?.charAt(0).toUpperCase()}
                       </span>
                     </div>
                   )}
-                  <span className="text-gray-700">{user.username}</span>
+                  <span className="text-gray-700">{username}</span>
                 </div>
                 <Button
                   variant="outline"

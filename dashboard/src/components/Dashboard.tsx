@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "./ui/button";
+import { UserMap } from "./UserMap";
+import { WorkScheduleManager } from "./WorkScheduleManager";
+import { useAuth } from "../contexts/AuthContext";
 
 interface Guild {
   id: string;
@@ -22,6 +25,7 @@ interface GuildSettings {
 export function Dashboard() {
   const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: guilds, isLoading: isLoadingGuilds } = useQuery<Guild[]>({
     queryKey: ["guilds"],
@@ -76,12 +80,35 @@ export function Dashboard() {
   if (isLoadingGuilds) {
     return <div>Loading guilds...</div>;
   }
-
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white shadow">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              Welcome, {user?.global_name || user?.username}
+            </h1>
+            <Button variant="outline" onClick={() => window.location.href = '/auth/logout'}>
+              Logout
+            </Button>
+          </div>
+        </div>
+      </header>
+
       <div className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+            {/* User Map */}
+            <div className="lg:col-span-4">
+              {user && <UserMap userId={user.id} />}
+            </div>
+
+            {/* Work Schedule */}
+            <div className="lg:col-span-4">
+              <WorkScheduleManager />
+            </div>
+
             {/* Guild List */}
             <div className="lg:col-span-1">
               <div className="rounded-lg bg-white p-6 shadow">

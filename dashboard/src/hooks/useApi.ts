@@ -1,5 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 
+interface User {
+  id: string;
+  username: string;
+  discriminator: string;
+  avatar: string | null;
+  global_name: string | null;
+}
+
 interface WorkSchedule {
   id: number;
   startTime: string;
@@ -21,13 +29,6 @@ interface CarpoolMember {
       address: string;
     };
   };
-}
-
-interface User {
-  id: string;
-  username: string;
-  discriminator: string;
-  avatar: string | null;
 }
 
 const fetchUser = async (): Promise<User> => {
